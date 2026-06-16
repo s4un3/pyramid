@@ -83,7 +83,7 @@ class SceneHandler:
         self.canvas.fill(0)
 
         for scene in self._scene_stack:
-            if not scene.handle_events(events, on_top=scene == self.top):
+            if not scene.handle_events(events, on_top=scene is self.top):
                 # returned False or None: should block other scenes from recieving events
                 break
 
@@ -91,11 +91,11 @@ class SceneHandler:
             self._accumulator -= _phys_dt
 
             for scene in self._scene_stack:
-                scene.update(_phys_dt, on_top=scene == self.top)
+                scene.update(_phys_dt, on_top=scene is self.top)
 
         if not is_resizing:
             for scene in reversed(self._scene_stack):
-                scene.draw(on_top=scene == self.top, alpha=self._accumulator / _phys_dt)
+                scene.draw(on_top=scene is self.top, alpha=self._accumulator / _phys_dt)
                 if not scene.bypass_canvas:
                     self.canvas.blit(scene.canvas, scene.blit_pos)
 

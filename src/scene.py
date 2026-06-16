@@ -13,7 +13,6 @@ class Scene(ABC):
 
     def __init__(
         self,
-        handler: SceneHandler,
         canvas: pygame.Surface | None = None,
         blit_pos: tuple[int, int] = (0, 0),
         bypass_canvas: bool = False,
@@ -23,15 +22,15 @@ class Scene(ABC):
 
         `canvas` is the internal surface this scene draws onto. You can use a fixed size surface and the handler will rescale and center it for you
 
-        Set `bypass_canvas` to true if the scene's canvas is already the screen, to skip the SceneHandler blitting this scene's canvas to the main window
+        Set `bypass_canvas` to True to skip the SceneHandler blitting this scene's canvas to the main window.
+        Useful if the scene doesn't draw anything, or modifies the handler's canvas or screen directly
         """
 
         self.canvas: pygame.Surface
-        if not canvas is None:
+        if not (canvas is None):
             self.canvas = canvas
 
         self.bypass_canvas: bool = bypass_canvas
-        self.handler: SceneHandler = handler
         self.blit_pos: tuple[int, int] = blit_pos
 
     def enter(self) -> None:

@@ -21,6 +21,6 @@ pygame.init()
 screen = pygame.display.set_mode((800, 600), pygame.RESIZABLE)
 
 h = SceneHandler(pygame.Surface((1920, 1080)), 1000, int(1000 / 120), 60)
-h.push(Test_Scene(h))
+h.push(Test_Scene())
 
 h.run()
