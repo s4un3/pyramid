@@ -65,11 +65,11 @@ class Scene(ABC):
         pass
 
     def handle_events(
-        self, events: list[pygame.event.Event], on_top: bool
+        self, events: list[pygame.event.Event], on_top: bool, consumed: bool
     ) -> bool | None:
         """Handle events, like key and mouse presses (not continuous)
 
-        Will block scenes below it to run `handle_events` unless True is returned"""
+        Will mark events as consumed for scenes below it unless True is returned"""
         pass
 
     def generate_canvas(self):

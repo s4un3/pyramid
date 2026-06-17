@@ -16,6 +16,7 @@ class SceneHandler:
         self._clock = pygame.time.Clock()
         self._screen = pygame.display.get_surface()
         self._events = []
+        self.dt: int = 0
 
         self.canvas = canvas
         self.max_frame_time_ms = max_frame_time_ms
@@ -82,10 +83,11 @@ class SceneHandler:
 
         self.canvas.fill(0)
 
+        consumed = False
         for scene in self._scene_stack:
-            if not scene.handle_events(events, on_top=scene is self.top):
-                # returned False or None: should block other scenes from recieving events
-                break
+            if not scene.handle_events(events, on_top=scene is self.top, consumed):
+                # returned False or None: mark events as consumed
+                consumed = True
 
         while self._accumulator >= _phys_dt:
             self._accumulator -= _phys_dt
@@ -102,8 +104,8 @@ class SceneHandler:
     def run(self):
         try:
             while True:
-                dt = self._clock.tick(self.graphic_framerate)
-                self._step(dt, self.phys_dt_ms)
+                self.dt = self._clock.tick(self.graphic_framerate)
+                self._step(self.dt, self.phys_dt_ms)
                 self._screen.fill(0)
                 self._blit_center_fit(self.canvas, self._screen)
                 pygame.display.flip()
