@@ -89,10 +89,8 @@ class SceneHandler:
 
         consumed = False
         for scene in self._scene_stack:
-            if not scene.handle_events(
-                events, on_top=scene is self.top, consumed=consumed
-            ):
-                # returned False or None: mark events as consumed
+            if scene.handle_events(events, on_top=scene is self.top, consumed=consumed):
+                # returned True: mark events as consumed
                 consumed = True
 
         while self._accumulator >= _phys_dt:
