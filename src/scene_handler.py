@@ -1,6 +1,10 @@
-from __future__ import annotations
 import pygame
 import sys
+
+from typing import TYPE_CHECKING
+
+if TYPE_CHECKING:
+    from scene import Scene
 
 
 class SceneHandler:

@@ -1,6 +1,10 @@
-from __future__ import annotations
 from abc import ABC
 import pygame
+
+from typing import TYPE_CHECKING
+
+if TYPE_CHECKING:
+    from scene_handler import SceneHandler
 
 
 class Scene(ABC):
@@ -32,6 +36,8 @@ class Scene(ABC):
 
         self.bypass_canvas: bool = bypass_canvas
         self.blit_pos: tuple[int, int] = blit_pos
+
+        self.handler: SceneHandler
 
     def enter(self) -> None:
         "Called when the scene is first pushed onto the handler's stack"
