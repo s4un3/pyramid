@@ -39,7 +39,7 @@ class SceneHandler:
         self._scene_stack = [scene] + self._scene_stack
         scene.handler = self
         if not hasattr(scene, "canvas") or not scene.canvas:
-            scene.generate_canvas()
+            scene.canvas = scene.create_canvas()
         scene.enter()
 
     def pop(self):
