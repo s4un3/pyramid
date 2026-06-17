@@ -5,7 +5,9 @@ import random
 
 
 class Test_Scene(Scene):
-    def handle_events(self, events: list[pygame.event.Event], on_top: bool) -> None:
+    def handle_events(
+        self, events: list[pygame.event.Event], on_top: bool, consumed: bool
+    ) -> None:
         for event in events:
             if event.type == pygame.KEYDOWN and event.key == pygame.K_SPACE:
                 self.canvas.fill(
