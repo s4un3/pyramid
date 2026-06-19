@@ -1,7 +1,7 @@
 import pygame
 import sys
 
-from typing import TYPE_CHECKING
+from typing import TYPE_CHECKING, Callable
 
 if TYPE_CHECKING:
     from scene import Scene
@@ -27,6 +27,8 @@ class SceneHandler:
         self.phys_dt_ms: int = phys_dt_ms
         self.graphic_framerate: float = graphic_framerate
 
+        self.post_processing: list[Callable[[], None]] = []
+
     @property
     def top(self) -> None | Scene:
         if not self._scene_stack:
@@ -42,7 +44,7 @@ class SceneHandler:
     def push(self, scene: Scene):
         if self.top:
             self.top.lose_top()
-            self._scene_stack.insert(0, scene)
+        self._scene_stack.insert(0, scene)
         self._init_scene(scene)
 
     def pop(self):
@@ -128,6 +130,9 @@ class SceneHandler:
                 scene.draw(on_top=scene is self.top, alpha=self._accumulator / _phys_dt)
                 if not scene.bypass_canvas:
                     self.canvas.blit(scene.canvas, scene.blit_pos)
+
+        for func in self.post_processing:
+            func()
 
     def run(self):
         try:
