@@ -78,7 +78,7 @@ class Scene(ABC):
         """Handle events, like key and mouse presses (not continuous)
 
         Will mark events as consumed for scenes below it if True is returned"""
-        pass
+        return False
 
     def create_canvas(self) -> pygame.Surface:
         return pygame.Surface(Scene.STD_SIZE)
