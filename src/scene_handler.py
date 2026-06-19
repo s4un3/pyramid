@@ -33,14 +33,17 @@ class SceneHandler:
             return None
         return self._scene_stack[0]
 
-    def push(self, scene: Scene):
-        if self.top:
-            self.top.lose_top()
-        self._scene_stack = [scene] + self._scene_stack
+    def _init_scene(self, scene: Scene):
         scene.handler = self
         if not hasattr(scene, "canvas") or not scene.canvas:
             scene.canvas = scene.create_canvas()
         scene.enter()
+
+    def push(self, scene: Scene):
+        if self.top:
+            self.top.lose_top()
+            self._scene_stack.insert(0, scene)
+        self._init_scene(scene)
 
     def pop(self):
         if self.top:
@@ -50,6 +53,27 @@ class SceneHandler:
 
             if self.top:
                 self.top.regain_top()
+
+    def pop_index(self, i: int):
+        if not self.top:
+            return
+        if self.top is self._scene_stack[i]:
+            self.pop()
+            return
+        scene = self._scene_stack[i]
+        scene.exit()
+        self._scene_stack.remove(scene)
+
+    def insert_index(self, i: int, scene: Scene):
+        if i == len(self._scene_stack):
+            self.push(scene)
+            return
+        if i > len(self._scene_stack):
+            raise IndexError(
+                "Index for insertion is too big (greater than current stack length)"
+            )
+        self._scene_stack.insert(i, scene)
+        self._init_scene(scene)
 
     def clear(self):
         while self.top:
