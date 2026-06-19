@@ -6,7 +6,7 @@ from typing import Any
 
 
 class _ManagedData:
-    def __init__(self, default: dict[str, Any] | None = None):
+    def __init__(self, default: dict[str, Any]):
         self.__dict__["_data"] = default
 
     def __getattr__(self, name: str, /) -> Any:
