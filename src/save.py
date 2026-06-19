@@ -7,7 +7,7 @@ from typing import Any
 
 class _ManagedData:
     def __init__(self, default: dict[str, Any] | None = None):
-        self.__dict__["_data"] = {} if default is None else default
+        self.__dict__["_data"] = default
 
     def __getattr__(self, name: str, /) -> Any:
         try:
@@ -51,23 +51,23 @@ class FileSave:
 
         if self._ext not in self._extensions:
             raise ValueError(
-                f"Unsupported file extension '{self._ext}'. Supported extensions are: {", ".join(self._extensions.keys())}"
+                f"Unsupported file extension '{self._ext}'. Supported extensions are: {', '.join(self._extensions.keys())}"
             )
 
         self._path.parent.mkdir(parents=True, exist_ok=True)
 
         self.data = _ManagedData(default)
-        self._default = default
+        self._default = {} if default is None else default.copy()
         self.load()
 
     def save(self) -> None:
         """Saves the internal data dictionary to the specified path."""
         match self._extensions[self._ext]:
             case "json":
-                with open(self._path, "w+", encoding="utf-8") as f:
+                with open(self._path, "w", encoding="utf-8") as f:
                     json.dump(self.data._data, f, indent=4)
             case "pickle":
-                with open(self._path, "wb+") as f:
+                with open(self._path, "wb") as f:
                     dill.dump(self.data._data, f)
 
     def load(self) -> None:
@@ -102,5 +102,7 @@ class FileSave:
                 ) from e
             loaded_data = self._default
 
-        if loaded_data:
-            self.data._data = loaded_data
+        if loaded_data is None:
+            return
+
+        self.data._data = loaded_data
