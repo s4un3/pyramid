@@ -2,6 +2,7 @@ from pathlib import Path
 import json
 from warnings import warn
 import dill
+from typing import Any
 
 
 class _ManagedData:
@@ -75,7 +76,7 @@ class FileSave:
             self.save()
             return
 
-        loaded_data: dict[str, Any]
+        loaded_data: dict[str, Any] | None = None
         try:
             match self._extensions[self._ext]:
                 case "json":
@@ -101,4 +102,5 @@ class FileSave:
                 ) from e
             loaded_data = self._default
 
-        self.data._data = loaded_data
+        if loaded_data:
+            self.data._data = loaded_data
