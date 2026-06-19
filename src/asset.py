@@ -1,5 +1,5 @@
 from pathlib import Path
-from typing import Any, Self
+from typing import Any, Self, Callable
 import pygame
 
 
@@ -15,7 +15,7 @@ class AssetManager:
     def _init_manager(self) -> None:
         self._cache: dict[tuple, Any] = {}
 
-    def _get_cached_or_load(self, key: tuple, load_func: callable) -> Any:
+    def _get_cached_or_load(self, key: tuple, load_func: Callable) -> Any:
         if key in self._cache:
             return self._cache[key]
 
