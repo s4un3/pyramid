@@ -1,108 +1,80 @@
-from pathlib import Path
+import datetime
 import json
-from warnings import warn
-import dill
+import logging
+from pathlib import Path
 from typing import Any
 
-
-class _ManagedData:
-    def __init__(self, default: dict[str, Any]):
-        self.__dict__["_data"] = default
-
-    def __getattr__(self, name: str, /) -> Any:
-        try:
-            return self._data[name]
-        except KeyError as e:
-            raise AttributeError(
-                f"'_ManagedData' object has no attribute '{name}'"
-            ) from e
-
-    def __setattr__(self, name: str, value: Any, /) -> None:
-        if name == "_data":
-            self.__dict__["_data"] = value
-        else:
-            self._data[name] = value
-
-    def __delattr__(self, name: str) -> None:
-        try:
-            del self._data[name]
-        except KeyError as e:
-            raise AttributeError(
-                f"'_ManagedData' object has no attribute '{name}'"
-            ) from e
-
-    def __contains__(self, name: str) -> bool:
-        return name in self._data
-
-    def __repr__(self) -> str:
-        return f"_ManagedData({self._data})"
+logger = logging.getLogger(__name__)
 
 
-class FileSave:
-    _extensions = {
-        ".json": "json",
-        ".pkl": "pickle",
-        ".pickle": "pickle",
-    }
+class JSONStore:
+    _copy = lambda o: json.dumps(json.loads(o))
 
-    def __init__(self, path: Path, default: dict[str, Any] | None = None):
+    def __init__(
+        self,
+        path: str | Path,
+        default_data: dict[str, Any] | None = None,
+        copy_func=deepcopy,
+    ):
         self._path = Path(path)
-        self._ext = self._path.suffix.lower()
-
-        if self._ext not in self._extensions:
-            raise ValueError(
-                f"Unsupported file extension '{self._ext}'. Supported extensions are: {', '.join(self._extensions.keys())}"
-            )
+        self._default_data = (
+            self._copy(default_data) if default_data is not None else {}
+        )
+        self.data: dict[str, Any] = {}
 
         self._path.parent.mkdir(parents=True, exist_ok=True)
-
-        self.data = _ManagedData(default)
-        self._default = {} if default is None else default.copy()
         self.load()
 
-    def save(self) -> None:
-        """Saves the internal data dictionary to the specified path."""
-        match self._extensions[self._ext]:
-            case "json":
-                with open(self._path, "w", encoding="utf-8") as f:
-                    json.dump(self.data._data, f, indent=4)
-            case "pickle":
-                with open(self._path, "wb") as f:
-                    dill.dump(self.data._data, f)
-
     def load(self) -> None:
-        """Loads data from the file back into the internal data dictionary."""
         if not self._path.exists():
+            self._reset_to_default()
             self.save()
             return
 
-        loaded_data: dict[str, Any] | None = None
         try:
-            match self._extensions[self._ext]:
-                case "json":
-                    with open(self._path, "r", encoding="utf-8") as f:
-                        loaded_data = json.load(f)
-                case "pickle":
-                    with open(self._path, "rb") as f:
-                        loaded_data = dill.load(f)
-        except (
-            json.JSONDecodeError,
-            UnicodeDecodeError,
-            dill.UnpicklingError,
-            EOFError,
-            ImportError,
-            AttributeError,
-        ) as e:
-            warn(
-                f"Could not decode file '{self._path}'. It may have been corrupted. Using default value. Exception: {e}"
-            )
-            if self._default is None:
-                raise ValueError(
-                    f"Had to use default value for object but no default was provided."
-                ) from e
-            loaded_data = self._default
+            with open(self._path, "r", encoding="utf-8") as f:
+                loaded_data = json.load(f)
 
-        if loaded_data is None:
-            return
+            if not isinstance(loaded_data, dict):
+                raise TypeError("JSON root must be an object/dictionary.")
 
-        self.data._data = loaded_data
+            self.data = loaded_data
+
+        except (json.JSONDecodeError, OSError, TypeError) as e:
+            old_path = str(self._path)
+            timestamp = datetime.datetime.now().strftime("%Y%m%d_%H%M%S")
+            backup_path = self._path.with_suffix(f".bak.{timestamp}")
+
+            try:
+                self._path.replace(backup_path)
+                logger.warning(
+                    f"File '{old_path}' could not be loaded. Old data moved to '{backup_path}' and default loaded."
+                )
+            except OSError:
+                logger.error(f"Could not backup corrupted file at {self._path}")
+
+            self._reset_to_default()
+
+    def save(self) -> None:
+        temp_path = self._path.with_suffix(".tmp")
+        try:
+            with open(temp_path, "w", encoding="utf-8") as f:
+                json.dump(self.data, f, indent=4)
+
+            temp_path.replace(self._path)
+        except (OSError, TypeError, ValueError) as e:
+            if temp_path.exists():
+                temp_path.unlink(missing_ok=True)
+            raise RuntimeError(f"Atomic save failed for {self._path}") from e
+
+    def get(self, key: str, fallback: Any = None) -> Any:
+        """
+        Reads a key with support for inline default values.
+        Checks current data, then default, then the fallback argument.
+        """
+        if key in self.data:
+            return self.data[key]
+        return self._default_data.get(key, fallback)
+
+    def _reset_to_default(self) -> None:
+        self.data = json.loads(json.dumps(self._default_data))
