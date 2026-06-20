@@ -8,13 +8,12 @@ logger = logging.getLogger(__name__)
 
 
 class JSONStore:
-    _copy = lambda o: json.dumps(json.loads(o))
+    _copy = lambda _, o: json.loads(json.dumps(o))
 
     def __init__(
         self,
         path: str | Path,
         default_data: dict[str, Any] | None = None,
-        copy_func=deepcopy,
     ):
         self._path = Path(path)
         self._default_data = (
