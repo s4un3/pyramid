@@ -1,6 +1,5 @@
 from pathlib import Path
 import pygame
-from singleton import Singleton
 from typing import Any, Callable, Generic, TypeVar
 
 K = TypeVar("K")  # key
@@ -11,12 +10,9 @@ B = TypeVar("B")  # binder
 class BoundCache(Generic[K, V, B]):
 
     def __init__(self):
-        if not hasattr(self, "_cache"):
-            self._cache: dict[K, V] = {}
-        if not hasattr(self, "_key_to_binder"):
-            self._key_to_binder: dict[K, set[B]] = {}
-        if not hasattr(self, "_binder_to_key"):
-            self._binder_to_key: dict[B, set[K]] = {}
+        self._cache: dict[K, V] = {}
+        self._key_to_binder: dict[K, set[B]] = {}
+        self._binder_to_key: dict[B, set[K]] = {}
 
     def clear(self) -> None:
         """Resets the cache and all bindings."""
@@ -59,7 +55,7 @@ class BoundCache(Generic[K, V, B]):
         return self._cache[key]
 
 
-class AssetManager(Singleton, BoundCache[tuple, Any, Any]):
+class AssetManager:
     # justification for binder logic instead of weakref:
     #
     # weakref would be simpler to implement and use, but would make cacheing impossible
@@ -71,10 +67,14 @@ class AssetManager(Singleton, BoundCache[tuple, Any, Any]):
     # with a binder logic, unloading will only occur when the developer let it happens,
     # while allowing much more control over a global .clear()
 
+    cache = BoundCache[tuple, Any, Any]()
+
+    def __init__(self, binder: Any):
+        self.binder = binder
+
     def image(
         self,
         path: Path | str,
-        binder: Any,
         rescale: tuple[int, int] | None = None,
     ) -> pygame.Surface:
         """Loads an image."""
@@ -85,12 +85,11 @@ class AssetManager(Singleton, BoundCache[tuple, Any, Any]):
             surf = pygame.image.load(str(path)).convert_alpha()
             return pygame.transform.scale(surf, rescale) if rescale else surf
 
-        return self.fetch_or_load(key, binder, load)
+        return self.cache.fetch_or_load(key, self.binder, load)
 
     def spritesheet(
         self,
         path: Path | str,
-        binder: Any,
         tile_size: tuple[int, int],
         rescale_tile: tuple[int, int] | None = None,
         rescale_whole: tuple[int, int] | None = None,
@@ -105,7 +104,6 @@ class AssetManager(Singleton, BoundCache[tuple, Any, Any]):
                 surface = pygame.transform.scale(surface, rescale_whole)
 
             tile_w, tile_h = tile_size
-            resc_x, resc_y = rescale_whole
             surf_w, surf_h = surface.get_size()
             cols = surf_w // tile_w
             rows = surf_h // tile_h
@@ -125,18 +123,20 @@ class AssetManager(Singleton, BoundCache[tuple, Any, Any]):
                 sprites.append(row)
             return sprites
 
-        return self.fetch_or_load(key, binder, load)
+        return self.cache.fetch_or_load(key, self.binder, load)
 
-    def sound(self, path: Path | str, binder: Any) -> pygame.mixer.Sound:
+    def sound(self, path: Path | str) -> pygame.mixer.Sound:
         """Loads a sound."""
         path = Path(path).resolve()
         key = (path,)
-        return self.fetch_or_load(key, binder, lambda: pygame.mixer.Sound(str(path)))
+        return self.cache.fetch_or_load(
+            key, self.binder, lambda: pygame.mixer.Sound(str(path))
+        )
 
-    def font(self, path: Path | str, binder: Any, size: int) -> pygame.font.Font:
+    def font(self, path: Path | str, size: int) -> pygame.font.Font:
         """Loads a font at a specific size."""
         path = Path(path).resolve()
         key = (path, size)
-        return self.fetch_or_load(
-            key, binder, lambda: pygame.font.Font(str(path), size)
+        return self.cache.fetch_or_load(
+            key, self.binder, lambda: pygame.font.Font(str(path), size)
         )
