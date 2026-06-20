@@ -1,19 +1,12 @@
 from pathlib import Path
 from typing import Any, Self, Callable
 import pygame
+from singleton import Singleton
 
 
-class AssetManager:
-    _instance: Self | None = None
+class AssetManager(Singleton):
 
-    def __new__(cls) -> Self:
-        if cls._instance is None:
-            cls._instance = super().__new__(cls)
-            cls._instance._init_manager()
-        return cls._instance
-
-    def _init_manager(self) -> None:
-        self._cache: dict[tuple, Any] = {}
+    _cache: dict[tuple, Any] = {}
 
     def _get_cached_or_load(self, key: tuple, load_func: Callable) -> Any:
         if key in self._cache:
