@@ -66,14 +66,53 @@ class JSONStore:
                 temp_path.unlink(missing_ok=True)
             raise RuntimeError(f"Atomic save failed for {self._path}") from e
 
-    def get(self, key: str, fallback: Any = None) -> Any:
-        """
-        Reads a key with support for inline default values.
-        Checks current data, then default, then the fallback argument.
-        """
-        if key in self.data:
-            return self.data[key]
-        return self._default_data.get(key, fallback)
-
     def _reset_to_default(self) -> None:
         self.data = json.loads(json.dumps(self._default_data))
+
+    def __getitem__(self, key: str) -> Any:
+        parts = key.split(".")
+
+        try:
+            current = self.data
+            for part in parts:
+                current = current[part]
+            return current
+        except (KeyError, TypeError):
+            pass
+
+        try:
+            current = self._default_data
+            for part in parts:
+                current = current[part]
+            return self._copy(current)
+        except (KeyError, TypeError):
+            raise KeyError(f"Key '{key}' not found in data or defaults.")
+
+    def __setitem__(self, key: str, value: Any) -> None:
+        parts = key.split(".")
+        current = self.data
+
+        for part in parts[:-1]:
+            if part not in current or not isinstance(current[part], dict):
+                current[part] = {}
+            current = current[part]
+
+        current[parts[-1]] = value
+
+    def __delitem__(self, key: str) -> None:
+        parts = key.split(".")
+        current = self.data
+
+        try:
+            for part in parts[:-1]:
+                current = current[part]
+            del current[parts[-1]]
+        except (KeyError, TypeError):
+            raise KeyError(f"Key '{key}' cannot be deleted because it does not exist.")
+
+    def __contains__(self, key: str) -> bool:
+        try:
+            self[key]
+            return True
+        except KeyError:
+            return False
