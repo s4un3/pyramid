@@ -8,6 +8,10 @@ class AssetManager(Singleton):
 
     _cache: dict[tuple, Any] = {}
 
+    def clear(self):
+        "Resets the cache"
+        self._cache.clear()
+
     def _get_cached_or_load(self, key: tuple, load_func: Callable) -> Any:
         if key in self._cache:
             return self._cache[key]
