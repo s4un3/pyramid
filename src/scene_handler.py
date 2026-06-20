@@ -7,7 +7,7 @@ if TYPE_CHECKING:
     from scene import Scene
 
 
-class SceneHandler:
+class SceneManager:
     def __init__(
         self,
         canvas: pygame.Surface,
