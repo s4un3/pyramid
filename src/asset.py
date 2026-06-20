@@ -10,9 +10,13 @@ B = TypeVar("B")  # binder
 
 class BoundCache(Generic[K, V, B]):
 
-    _cache: dict[K, V] = {}
-    _key_to_binder: dict[K, set[B]] = {}
-    _binder_to_key: dict[B, set[K]] = {}
+    def __init__(self):
+        if not hasattr(self, "_cache"):
+            self._cache: dict[K, V] = {}
+        if not hasattr(self, "_key_to_binder"):
+            self._key_to_binder: dict[K, set[B]] = {}
+        if not hasattr(self, "_binder_to_key"):
+            self._binder_to_key: dict[B, set[K]] = {}
 
     def clear(self) -> None:
         """Resets the cache and all bindings."""
@@ -56,6 +60,16 @@ class BoundCache(Generic[K, V, B]):
 
 
 class AssetManager(Singleton, BoundCache[tuple, Any, Any]):
+    # justification for binder logic instead of weakref:
+    #
+    # weakref would be simpler to implement and use, but would make cacheing impossible
+    # in some scenarios that, at first glance, don't have any problem.
+    # for example, a simple and direct "screen.blit(manager.image("hero.png", self), (0,0))"
+    # would cause the image to be loaded from disk every single time and never actually cached
+    # because no weak reference to it was created
+    #
+    # with a binder logic, unloading will only occur when the developer let it happens,
+    # while allowing much more control over a global .clear()
 
     def image(
         self,
