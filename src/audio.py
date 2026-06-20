@@ -47,7 +47,7 @@ class AudioManager(Singleton):
         maxtime_ms: int = 0,
         fadein_ms: int = 0,
     ) -> tuple[Track, int] | None:
-        for i, c in enumerate(self._channels[track.value]):
+        for i, c in enumerate(self._channels[track]):
             if not c.get_busy():
                 c.play(sound, loops, maxtime_ms, fadein_ms)
                 return (track, i)

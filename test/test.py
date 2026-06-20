@@ -1,6 +1,5 @@
 import pygame
-from src.scene_handler import SceneHandler
-from src.scene import Scene
+from src.scene import Scene, SceneManager
 import random
 
 
@@ -23,7 +22,7 @@ class Test_Scene(Scene):
 pygame.init()
 screen = pygame.display.set_mode((800, 600), pygame.RESIZABLE)
 
-h = SceneHandler(pygame.Surface((1920, 1080)), 1000, int(1000 / 120), 60)
+h = SceneManager(pygame.Surface((1920, 1080)), 1000, int(1000 / 120), 60)
 h.push(Test_Scene())
 
 h.run()
