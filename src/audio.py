@@ -33,7 +33,7 @@ class AudioManager(Singleton):
                 i += 1
 
     def stop_track(self, track: Track, fadeout_ms: int):
-        for c in self._channels[channel]:
+        for c in self._channels[track]:
             c.fadeout(fadeout_ms)
 
     def stop_all(self, fadeout_ms: int):
