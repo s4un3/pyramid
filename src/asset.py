@@ -1,57 +1,98 @@
 from pathlib import Path
-from typing import Any, Self, Callable
 import pygame
 from singleton import Singleton
+from typing import Any, Callable, Generic, TypeVar
+
+K = TypeVar("K")  # key
+V = TypeVar("V")  # value (eg asset)
+B = TypeVar("B")  # binder
 
 
-class AssetManager(Singleton):
+class BoundCache(Generic[K, V, B]):
 
-    _cache: dict[tuple, Any] = {}
+    _cache: dict[K, V] = {}
+    _key_to_binder: dict[K, set[B]] = {}
+    _binder_to_key: dict[B, set[K]] = {}
 
-    def clear(self):
-        "Resets the cache"
+    def clear(self) -> None:
+        """Resets the cache and all bindings."""
         self._cache.clear()
+        self._key_to_binder.clear()
+        self._binder_to_key.clear()
 
-    def _get_cached_or_load(self, key: tuple, load_func: Callable) -> Any:
-        if key in self._cache:
-            return self._cache[key]
+    def unbind(self, binder: B) -> None:
+        """Removes a binder and deallocates values no longer bound to anything."""
+        if binder not in self._binder_to_key:
+            return
 
-        asset = load_func()
-        self._cache[key] = asset
-        return asset
+        bound_keys = self._binder_to_key.pop(binder)
+
+        for key in bound_keys:
+            if key not in self._key_to_binder:
+                continue
+
+            self._key_to_binder[key].discard(binder)
+
+            if self._key_to_binder[key]:
+                continue  # key still has other binders
+
+            del self._key_to_binder[key]
+            self._cache.pop(key, None)
+
+    def fetch_or_load(self, key: K, binder: B, load_func: Callable[[], V]) -> V:
+        """Retrieves an asset from cache or loads it, managing the tripartite binding."""
+        if key not in self._cache:
+            self._cache[key] = load_func()
+
+        if key not in self._key_to_binder:
+            self._key_to_binder[key] = set()
+        self._key_to_binder[key].add(binder)
+
+        if binder not in self._binder_to_key:
+            self._binder_to_key[binder] = set()
+        self._binder_to_key[binder].add(key)
+
+        return self._cache[key]
+
+
+class AssetManager(Singleton, BoundCache[tuple, Any, Any]):
 
     def image(
-        self, path: Path | str, rescale: tuple[int, int] | None = None
+        self,
+        path: Path | str,
+        binder: Any,
+        rescale: tuple[int, int] | None = None,
     ) -> pygame.Surface:
-        "Loads a single image."
+        """Loads an image."""
         path = Path(path).resolve()
         key = (path, rescale)
 
-        def load():
+        def load() -> pygame.Surface:
             surf = pygame.image.load(str(path)).convert_alpha()
             return pygame.transform.scale(surf, rescale) if rescale else surf
 
-        return self._get_cached_or_load(key, load)
+        return self.fetch_or_load(key, binder, load)
 
     def spritesheet(
         self,
         path: Path | str,
+        binder: Any,
         tile_size: tuple[int, int],
         rescale_tile: tuple[int, int] | None = None,
         rescale_whole: tuple[int, int] | None = None,
     ) -> list[list[pygame.Surface]]:
-        """Slices a spritesheet into a matrix of surfaces."""
+        """Loads and slices a spritesheet into a matrix of surfaces."""
         path = Path(path).resolve()
         key = (path, tile_size, rescale_tile, rescale_whole)
 
-        def load():
+        def load() -> list[list[pygame.Surface]]:
             surface = pygame.image.load(str(path)).convert_alpha()
             if rescale_whole:
                 surface = pygame.transform.scale(surface, rescale_whole)
 
             tile_w, tile_h = tile_size
+            resc_x, resc_y = rescale_whole
             surf_w, surf_h = surface.get_size()
-
             cols = surf_w // tile_w
             rows = surf_h // tile_h
 
@@ -61,28 +102,27 @@ class AssetManager(Singleton):
                 for c in range(cols):
                     x = c * tile_w
                     y = r * tile_h
-
                     rect = pygame.Rect(x, y, tile_w, tile_h)
                     tile = surface.subsurface(rect).copy()
 
                     if rescale_tile:
                         tile = pygame.transform.scale(tile, rescale_tile)
-
                     row.append(tile)
                 sprites.append(row)
-
             return sprites
 
-        return self._get_cached_or_load(key, load)
+        return self.fetch_or_load(key, binder, load)
 
-    def sound(self, path: Path | str) -> pygame.mixer.Sound:
-        """Loads a sound effect or music track."""
+    def sound(self, path: Path | str, binder: Any) -> pygame.mixer.Sound:
+        """Loads a sound."""
         path = Path(path).resolve()
         key = (path,)
-        return self._get_cached_or_load(key, lambda: pygame.mixer.Sound(str(path)))
+        return self.fetch_or_load(key, binder, lambda: pygame.mixer.Sound(str(path)))
 
-    def font(self, path: Path | str, size: int) -> pygame.font.Font:
+    def font(self, path: Path | str, binder: Any, size: int) -> pygame.font.Font:
         """Loads a font at a specific size."""
         path = Path(path).resolve()
         key = (path, size)
-        return self._get_cached_or_load(key, lambda: pygame.font.Font(str(path), size))
+        return self.fetch_or_load(
+            key, binder, lambda: pygame.font.Font(str(path), size)
+        )
