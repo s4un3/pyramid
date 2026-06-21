@@ -1,7 +1,6 @@
 from abc import ABC
 import pygame
-import sys
-from typing import Callable
+from collections.abc import Callable
 
 
 class SceneHaltSignal(Exception):

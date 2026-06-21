@@ -1,14 +1,14 @@
 from abc import ABC, abstractmethod
+from collections.abc import Callable
 from dataclasses import dataclass
 from enum import StrEnum
-from typing import Callable, Dict, List, Optional, Tuple, Union, Any
 import pygame
 
 # Type aliases to keep signatures clean
-ColorRGBA = Tuple[int, int, int, int]
-LineItem = Tuple[Union[pygame.Surface, str], int, int, bool]
-LineLayout = Tuple[List[LineItem], int, int]
-TextSource = Union[str, Callable[[], str]]
+ColorRGBA = tuple[int, int, int, int]
+LineItem = tuple[pygame.Surface | str, int, int, bool]
+LineLayout = tuple[list[LineItem], int, int]
+TextSource = str | Callable[[], str]
 
 
 class UIAlignmentH(StrEnum):
@@ -42,13 +42,13 @@ class PanelOrientation(StrEnum):
 class UIStyle:
     """Groups styling configuration for UI components, including fonts (if applicable), colors, borders, and alignment."""
 
-    font: Optional[pygame.font.Font] = None
+    font: pygame.font.Font | None = None
     text_color: ColorRGBA = (255, 255, 255, 255)
-    bg_color: Optional[ColorRGBA] = (0, 0, 0, 100)
+    bg_color: ColorRGBA | None = (0, 0, 0, 100)
     hover_color: ColorRGBA = (70, 70, 70, 100)
-    border_color: Optional[ColorRGBA] = (255, 255, 255, 255)
+    border_color: ColorRGBA | None = (255, 255, 255, 255)
     border_width: int = 1
-    padding: Union[int, Tuple[int, int, int, int]] = 4  # top, right, bottom, left
+    padding: int | tuple[int, int, int, int] = 4  # top, right, bottom, left
     align_h: UIAlignmentH = UIAlignmentH.CENTER
     align_v: UIAlignmentV = UIAlignmentV.CENTER
     line_spacing: int = 4
@@ -60,8 +60,8 @@ class UIElement(ABC):
     def __init__(
         self,
         style: UIStyle,
-        width: Union[int, UISize] = UISize.AUTO,
-        height: Union[int, UISize] = UISize.AUTO,
+        width: int | UISize = UISize.AUTO,
+        height: int | UISize = UISize.AUTO,
     ):
         self.requested_width = width
         self.requested_height = height
@@ -83,7 +83,7 @@ class UIElement(ABC):
         pass
 
     def prepare_base_surface(
-        self, w: int, h: int, bg_override: Optional[ColorRGBA] = None
+        self, w: int, h: int, bg_override: ColorRGBA | None = None
     ) -> pygame.Surface:
         """Generates a standard background canvas with optional borders applied."""
         surf = pygame.Surface((w, h), pygame.SRCALPHA)
@@ -101,13 +101,13 @@ class UIElement(ABC):
         return surf
 
     def handle_event(
-        self, event: pygame.event.Event, mouse_pos: Tuple[int, int]
+        self, event: pygame.event.Event, mouse_pos: tuple[int, int]
     ) -> None:
         """Handles a Pygame event for this UI element."""
         pass
 
     @abstractmethod
-    def render(self, topleft: Tuple[int, int]) -> Tuple[pygame.Surface, pygame.Rect]:
+    def render(self, topleft: tuple[int, int]) -> tuple[pygame.Surface, pygame.Rect]:
         """Renders the UI element at the requested position and returns its surface and rect."""
         pass
 
@@ -119,9 +119,9 @@ class UITextElement(UIElement, ABC):
         self,
         text: TextSource,
         style: UIStyle,
-        width: Union[int, UISize] = UISize.AUTO,
-        height: Union[int, UISize] = UISize.AUTO,
-        inline_surfaces: Optional[Dict[str, pygame.Surface]] = None,
+        width: int | UISize = UISize.AUTO,
+        height: int | UISize = UISize.AUTO,
+        inline_surfaces: dict[str, pygame.Surface] | None = None,
     ):
         if style.font is None:
             raise ValueError(
@@ -130,7 +130,7 @@ class UITextElement(UIElement, ABC):
         super().__init__(style, width, height)
         self.text = text
         self.inline_surfaces = inline_surfaces if inline_surfaces else {}
-        self._cached_line_data: List[LineLayout] = []
+        self._cached_line_data: list[LineLayout] = []
         self._cached_text_height: int = 0
 
     def _get_active_text(self) -> str:
@@ -154,8 +154,8 @@ class UITextElement(UIElement, ABC):
         )
 
         words = resolved_text.split(" ")
-        lines: List[List[LineItem]] = []
-        current_line: List[LineItem] = []
+        lines: list[list[LineItem]] = []
+        current_line: list[LineItem] = []
         current_width = 0
 
         for word in words:
@@ -207,7 +207,7 @@ class UITextElement(UIElement, ABC):
         self.absolute_rect.size = (self.width, self.height)
 
     def draw_text_layout(
-        self, bg_override: Optional[ColorRGBA] = None
+        self, bg_override: ColorRGBA | None = None
     ) -> pygame.Surface:
         """Draws the text with inline surfaces and alignment into the prepared surface."""
 
@@ -256,23 +256,23 @@ class UIButton(UITextElement):
         self,
         text: TextSource,
         style: UIStyle,
-        width: Union[int, UISize] = UISize.AUTO,
-        height: Union[int, UISize] = UISize.AUTO,
-        on_click: Optional[Callable[[], None]] = None,
-        inline_surfaces: Optional[Dict[str, pygame.Surface]] = None,
+        width: int | UISize = UISize.AUTO,
+        height: int | UISize = UISize.AUTO,
+        on_click: Callable[[], None] | None = None,
+        inline_surfaces: dict[str, pygame.Surface] | None = None,
     ):
         super().__init__(text, style, width, height, inline_surfaces)
         self.on_click = on_click
         self.is_hovered = False
 
-    def render(self, topleft: Tuple[int, int]) -> Tuple[pygame.Surface, pygame.Rect]:
+    def render(self, topleft: tuple[int, int]) -> tuple[pygame.Surface, pygame.Rect]:
         self.absolute_rect.topleft = topleft
         current_bg = self.style.hover_color if self.is_hovered else self.style.bg_color
         button_surf = self.draw_text_layout(bg_override=current_bg)
         return button_surf, self.absolute_rect
 
     def handle_event(
-        self, event: pygame.event.Event, mouse_pos: Tuple[int, int]
+        self, event: pygame.event.Event, mouse_pos: tuple[int, int]
     ) -> None:
         match event.type:
             case pygame.MOUSEMOTION:
@@ -293,7 +293,7 @@ class UIButton(UITextElement):
 class UITextBox(UITextElement):
     """Simple text box element that renders text to a surface."""
 
-    def render(self, topleft: Tuple[int, int]) -> Tuple[pygame.Surface, pygame.Rect]:
+    def render(self, topleft: tuple[int, int]) -> tuple[pygame.Surface, pygame.Rect]:
         self.absolute_rect.topleft = topleft
         box_surf = self.draw_text_layout()
         return box_surf, self.absolute_rect
@@ -305,10 +305,10 @@ class UIImage(UIElement):
     def __init__(
         self,
         image: pygame.Surface,
-        width: Union[int, UISize] = UISize.AUTO,
-        height: Union[int, UISize] = UISize.AUTO,
+        width: int | UISize = UISize.AUTO,
+        height: int | UISize = UISize.AUTO,
         scale_mode: ImageScaleMode = ImageScaleMode.FIT,
-        style: Optional[UIStyle] = None,
+        style: UIStyle | None = None,
     ):
         super().__init__(style or UIStyle(font=None), width, height)
         self.original_image = image
@@ -330,7 +330,7 @@ class UIImage(UIElement):
         )
         self.absolute_rect.size = (self.width, self.height)
 
-    def render(self, topleft: Tuple[int, int]) -> Tuple[pygame.Surface, pygame.Rect]:
+    def render(self, topleft: tuple[int, int]) -> tuple[pygame.Surface, pygame.Rect]:
         self.absolute_rect.topleft = topleft
         surf = self.prepare_base_surface(self.width, self.height)
 
@@ -378,7 +378,7 @@ class UIImage(UIElement):
 
 
 class UIPanel:
-    """Container for arranging child UI elements in a row or column with padding and spacing."""
+    """Container for arranging UI elements in a row or column with padding and spacing."""
 
     def __init__(
         self,
@@ -386,7 +386,7 @@ class UIPanel:
         y: int,
         spacing: int = 10,
         orientation: PanelOrientation = PanelOrientation.VERTICAL,
-        bg_color: Optional[ColorRGBA] = None,
+        bg_color: ColorRGBA | None = None,
         padding: int = 10,
     ):
         self.rect = pygame.Rect(x, y, 0, 0)
@@ -394,13 +394,13 @@ class UIPanel:
         self.orientation = orientation
         self.bg_color = bg_color
         self.padding = padding
-        self.children: List[UIElement] = []
+        self.children: list[UIElement] = []
 
     def add_child(self, child: UIElement) -> None:
         self.children.append(child)
 
     def handle_event(
-        self, event: pygame.event.Event, mouse_pos: Tuple[int, int]
+        self, event: pygame.event.Event, mouse_pos: tuple[int, int]
     ) -> None:
         for child in self.children:
             child.handle_event(event, mouse_pos)

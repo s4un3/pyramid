@@ -1,9 +1,9 @@
 from pathlib import Path
 import shutil
+from collections.abc import Callable
 from Cython.Build import cythonize
 from setuptools import Extension
 from setuptools.dist import Distribution
-from typing import Callable, List, Optional
 
 
 class CythonCompiler:
@@ -16,14 +16,14 @@ class CythonCompiler:
     def __init__(
         self,
         output_dir: str,
-        skip_and_copy_predicate: Optional[Callable[[str], bool]] = None,
+        skip_and_copy_predicate: Callable[[str], bool] | None = None,
     ) -> None:
         """Initializes the compiler with an output directory and a predicate for copy-only files."""
         self.output_dir = Path(output_dir).resolve()
         self.temp_build = self.output_dir / ".tmp"
         self.skip_and_copy_predicate = skip_and_copy_predicate or (lambda _: False)
 
-    def _run_distribution_build(self, extensions: List[Extension]) -> None:
+    def _run_distribution_build(self, extensions: list[Extension]) -> None:
         """Builds and writes compiled extensions to the configured output directory."""
         self.output_dir.mkdir(parents=True, exist_ok=True)
         self.temp_build.mkdir(parents=True, exist_ok=True)
@@ -56,7 +56,7 @@ class CythonCompiler:
         if self.temp_build.exists():
             shutil.rmtree(self.temp_build)
 
-    def _should_ignore(self, file_path: Path, relative_str: str) -> bool:
+    def _should_ignore(self, file_path: Path) -> bool:
         """Determines whether a given file should be excluded from compilation or copying."""
         if file_path.is_relative_to(self.output_dir):
             return True
@@ -74,14 +74,14 @@ class CythonCompiler:
                 f"Project path must be a directory: {project_path}"
             )
 
-        extensions: List[Extension] = []
-        files_to_copy: List[tuple[Path, Path]] = []
+        extensions: list[Extension] = []
+        files_to_copy: list[tuple[Path, Path]] = []
 
         for file_path in project_path.rglob("*"):
             relative_path = file_path.relative_to(project_path)
             relative_str = str(relative_path)
 
-            if self._should_ignore(file_path, relative_str):
+            if self._should_ignore(file_path):
                 continue
 
             is_forced_copy = file_path.name in self.FORCE_COPY_NAMES

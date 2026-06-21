@@ -1,6 +1,7 @@
 from pathlib import Path
 import pygame
-from typing import Any, Callable, Generic, TypeVar
+from collections.abc import Callable
+from typing import Any, Generic, TypeVar
 
 K = TypeVar("K")  # key (usually a tuple)
 V = TypeVar("V")  # value (eg asset)
