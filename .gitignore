@@ -8,3 +8,7 @@ wheels/
 
 # Virtual environments
 .venv
+
+# Tests and development helper scripts
+tests/
+print_auto_init.py
