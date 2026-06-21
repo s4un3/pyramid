@@ -7,10 +7,10 @@ from typing import Callable
 class SceneManager:
     def __init__(
         self,
-        canvas: pygame.Surface,
         max_frame_time_ms: int,
         phys_dt_ms: int,
         graphic_framerate: float,
+        canvas: pygame.Surface | None = None,
     ):
         self._scene_stack: list[Scene] = []
         self._accumulator: int = 0
@@ -19,7 +19,7 @@ class SceneManager:
         self._events = []
         self.dt: int = 0
 
-        self.canvas = canvas
+        self.canvas = pygame.Surface(Scene.STD_SIZE) if canvas is None else canvas
         self.max_frame_time_ms = max_frame_time_ms
         self.phys_dt_ms: int = phys_dt_ms
         self.graphic_framerate: float = graphic_framerate
@@ -145,6 +145,50 @@ class SceneManager:
     def end(self):
         self.clear()
         sys.exit()
+
+    def _get_canvas_scale_and_offset(self) -> tuple[float, tuple[int, int]]:
+        src_w, src_h = self.canvas.get_size()
+        tgt_w, tgt_h = self._screen.get_size()
+
+        scale_factor = min(tgt_w / src_w, tgt_h / src_h)
+
+        new_w = int(src_w * scale_factor)
+        new_h = int(src_h * scale_factor)
+
+        offset_x = (tgt_w - new_w) // 2
+        offset_y = (tgt_h - new_h) // 2
+
+        return scale_factor, (offset_x, offset_y)
+
+    def screen_to_scene(
+        self, screen_pos: tuple[int, int], scene: Scene
+    ) -> tuple[float, float]:
+        """Translates a coordinate from the window/screen space
+        to the local coordinate system of a specific scene."""
+        scale, (off_x, off_y) = self._get_canvas_scale_and_offset()
+
+        canvas_x = (screen_pos[0] - off_x) / scale
+        canvas_y = (screen_pos[1] - off_y) / scale
+
+        scene_x = canvas_x - scene.blit_pos[0]
+        scene_y = canvas_y - scene.blit_pos[1]
+
+        return (scene_x, scene_y)
+
+    def scene_to_screen(
+        self, scene_pos: tuple[int, int] | tuple[float, float], scene: Scene
+    ) -> tuple[int, int]:
+        """Translates a local coordinate from a specific scene to
+        global screen/window coordinates."""
+        scale, (off_x, off_y) = self._get_canvas_scale_and_offset()
+
+        canvas_x = scene_pos[0] + scene.blit_pos[0]
+        canvas_y = scene_pos[1] + scene.blit_pos[1]
+
+        screen_x = int(canvas_x * scale + off_x)
+        screen_y = int(canvas_y * scale + off_y)
+
+        return (screen_x, screen_y)
 
 
 class Scene(ABC):

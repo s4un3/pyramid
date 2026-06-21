@@ -22,7 +22,7 @@ class Test_Scene(Scene):
 pygame.init()
 screen = pygame.display.set_mode((800, 600), pygame.RESIZABLE)
 
-h = SceneManager(pygame.Surface((1920, 1080)), 1000, int(1000 / 120), 60)
+h = SceneManager(1000, int(1000 / 120), 60)
 h.push(Test_Scene())
 
 h.run()
