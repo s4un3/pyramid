@@ -4,6 +4,10 @@ import sys
 from typing import Callable
 
 
+class SceneHaltSignal(Exception):
+    pass
+
+
 class SceneManager:
     def __init__(
         self,
@@ -103,7 +107,7 @@ class SceneManager:
 
         for event in events:
             if event.type == pygame.QUIT:
-                self.end()
+                self.end("Window closed by the 'quit' button.")
             elif event.type in (pygame.VIDEORESIZE, pygame.WINDOWRESIZED):
                 is_resizing = True
                 self._screen = pygame.display.get_surface()
@@ -131,7 +135,7 @@ class SceneManager:
         for func in self.post_processing:
             func()
 
-    def run(self):
+    def run(self, raise_on_halt: bool = True) -> SceneHaltSignal:
         try:
             while True:
                 self.dt = self._clock.tick(self.graphic_framerate)
@@ -139,12 +143,16 @@ class SceneManager:
                 self._screen.fill(0)
                 self._blit_center_fit(self.canvas, self._screen)
                 pygame.display.flip()
-        except KeyboardInterrupt as e:
-            self.end()
+        except (KeyboardInterrupt, SceneHaltSignal) as e:
+            self.clear()
+            if isinstance(e, KeyboardInterrupt):
+                raise
+            if raise_on_halt:
+                raise
+            return e  # if recovery of the message is needed
 
-    def end(self):
-        self.clear()
-        sys.exit()
+    def end(self, message: str):
+        raise SceneHaltSignal(message)
 
     def _get_canvas_scale_and_offset(self) -> tuple[float, tuple[int, int]]:
         src_w, src_h = self.canvas.get_size()
@@ -192,6 +200,8 @@ class SceneManager:
 
 
 class Scene(ABC):
+    # even if it is an ABC, all current methods can be safelly left unimplemented (use default)
+
     # class values to act as defaults
     bypass_canvas = False
     blit_pos = (0, 0)
