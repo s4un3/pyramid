@@ -40,7 +40,7 @@ class PanelOrientation(StrEnum):
 
 @dataclass
 class UIStyle:
-    """Groups styling configuration. font can be None for non-text components."""
+    """Groups styling configuration for UI components, including fonts (if applicable), colors, borders, and alignment."""
 
     font: Optional[pygame.font.Font] = None
     text_color: ColorRGBA = (255, 255, 255, 255)
@@ -55,7 +55,7 @@ class UIStyle:
 
 
 class UIElement(ABC):
-    """Abstract base framework tracking box-model bounds and surface preparation."""
+    """Abstract base class for UI elements supporting layout, rendering, and event handling."""
 
     def __init__(
         self,
@@ -79,7 +79,7 @@ class UIElement(ABC):
 
     @abstractmethod
     def update_dimensions(self) -> None:
-        """Calculate and set concrete values for self.width and self.height if 'auto'."""
+        """Update self.width and self.height based on content and requested size."""
         pass
 
     def prepare_base_surface(
@@ -103,15 +103,17 @@ class UIElement(ABC):
     def handle_event(
         self, event: pygame.event.Event, mouse_pos: Tuple[int, int]
     ) -> None:
+        """Handles a Pygame event for this UI element."""
         pass
 
     @abstractmethod
     def render(self, topleft: Tuple[int, int]) -> Tuple[pygame.Surface, pygame.Rect]:
+        """Renders the UI element at the requested position and returns its surface and rect."""
         pass
 
 
 class UITextElement(UIElement, ABC):
-    """Intermediate base for nodes managing complex typographic wrapping and text metrics."""
+    """Base class for text-based UI elements that calculate layout and render multiline text."""
 
     def __init__(
         self,
@@ -132,6 +134,7 @@ class UITextElement(UIElement, ABC):
         self._cached_text_height: int = 0
 
     def _get_active_text(self) -> str:
+        """Resolves either literal text or a callable text source to a string."""
         if isinstance(self.text, str):
             return str(self.text)
         return str(self.text())
@@ -206,7 +209,7 @@ class UITextElement(UIElement, ABC):
     def draw_text_layout(
         self, bg_override: Optional[ColorRGBA] = None
     ) -> pygame.Surface:
-        """Draws the text alignment hierarchy inside the calculated surface boundary."""
+        """Draws the text with inline surfaces and alignment into the prepared surface."""
 
         assert not (self.style.font is None)
         surf = self.prepare_base_surface(self.width, self.height, bg_override)
@@ -247,6 +250,7 @@ class UITextElement(UIElement, ABC):
 
 
 class UIButton(UITextElement):
+    """Button element that renders styled text and supports hover/click input."""
 
     def __init__(
         self,
@@ -287,6 +291,7 @@ class UIButton(UITextElement):
 
 
 class UITextBox(UITextElement):
+    """Simple text box element that renders text to a surface."""
 
     def render(self, topleft: Tuple[int, int]) -> Tuple[pygame.Surface, pygame.Rect]:
         self.absolute_rect.topleft = topleft
@@ -295,7 +300,7 @@ class UITextBox(UITextElement):
 
 
 class UIImage(UIElement):
-    """A generic element relying on an image surface with configurable scaling policies."""
+    """Element displaying an image with optional fitting, stretching, or no scaling."""
 
     def __init__(
         self,
@@ -373,7 +378,7 @@ class UIImage(UIElement):
 
 
 class UIPanel:
-    """Container tracking and laying out collections of custom child nodes uniformly."""
+    """Container for arranging child UI elements in a row or column with padding and spacing."""
 
     def __init__(
         self,

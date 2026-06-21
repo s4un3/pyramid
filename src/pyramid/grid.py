@@ -5,6 +5,8 @@ K = TypeVar("K")
 
 
 class GridManager(Generic[K]):
+    """Manages grid cell layout and mapping between grid indexes and pixel coordinates."""
+
     def __init__(
         self,
         cols: int,
@@ -13,6 +15,7 @@ class GridManager(Generic[K]):
         offset: tuple[int, int] | None = None,
         spacing: int = 0,
     ):
+        """Initializes a grid manager with dimensions, cell size, optional offset, and spacing."""
         self.cols = cols
         self.rows = rows
         self.cell_size = cell_size

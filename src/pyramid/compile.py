@@ -7,6 +7,7 @@ from typing import Callable, List, Optional
 
 
 class CythonCompiler:
+    """Compiles Python and Cython source files from a project into a build directory."""
 
     DEFAULT_IGNORES = {"__pycache__", ".venv", ".git", ".tmp"}
     FORCE_COPY_NAMES = {"setup.py", "__init__.py", "main.py"}
@@ -17,11 +18,13 @@ class CythonCompiler:
         output_dir: str,
         skip_and_copy_predicate: Optional[Callable[[str], bool]] = None,
     ) -> None:
+        """Initializes the compiler with an output directory and a predicate for copy-only files."""
         self.output_dir = Path(output_dir).resolve()
         self.temp_build = self.output_dir / ".tmp"
         self.skip_and_copy_predicate = skip_and_copy_predicate or (lambda _: False)
 
     def _run_distribution_build(self, extensions: List[Extension]) -> None:
+        """Builds and writes compiled extensions to the configured output directory."""
         self.output_dir.mkdir(parents=True, exist_ok=True)
         self.temp_build.mkdir(parents=True, exist_ok=True)
 
@@ -49,10 +52,12 @@ class CythonCompiler:
             self._cleanup_temp()
 
     def _cleanup_temp(self) -> None:
+        """Removes the temporary build directory after compilation completes."""
         if self.temp_build.exists():
             shutil.rmtree(self.temp_build)
 
     def _should_ignore(self, file_path: Path, relative_str: str) -> bool:
+        """Determines whether a given file should be excluded from compilation or copying."""
         if file_path.is_relative_to(self.output_dir):
             return True
         if not file_path.is_file():
@@ -62,6 +67,7 @@ class CythonCompiler:
         return False
 
     def compile_project(self, project_dir: str) -> None:
+        """Scans a project directory, compiles source files, and copies non-compilable files."""
         project_path = Path(project_dir).resolve()
         if not project_path.is_dir():
             raise NotADirectoryError(

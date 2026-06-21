@@ -2,14 +2,16 @@ from pathlib import Path
 import pygame
 from typing import Any, Callable, Generic, TypeVar
 
-K = TypeVar("K")  # key
+K = TypeVar("K")  # key (usually a tuple)
 V = TypeVar("V")  # value (eg asset)
 B = TypeVar("B")  # binder
 
 
 class BoundCache(Generic[K, V, B]):
+    """A cache that maps loaded values to binders and supports selective unbinding."""
 
-    def __init__(self):
+    def __init__(self) -> None:
+        """Initializes the internal cache and binder index structures."""
         self._cache: dict[K, V] = {}
         self._key_to_binder: dict[K, set[B]] = {}
         self._binder_to_key: dict[B, set[K]] = {}
@@ -40,6 +42,8 @@ class BoundCache(Generic[K, V, B]):
             self._cache.pop(key, None)
 
     def fetch_or_load(self, key: K, binder: B, load_func: Callable[[], V]) -> V:
+        """Returns a cached value if present, otherwise loads.
+        Binds it to the given binder independently of if it is already on cache."""
         if key not in self._cache:
             self._cache[key] = load_func()
 
@@ -55,6 +59,8 @@ class BoundCache(Generic[K, V, B]):
 
 
 class AssetManager:
+    """Provides singleton-like (shared cache) access to shared asset loading and binder-aware caching."""
+
     # justification for binder logic instead of weakref:
     #
     # weakref would be simpler to implement and use, but would make cacheing impossible
@@ -69,6 +75,7 @@ class AssetManager:
     cache = BoundCache[tuple, Any, Any]()
 
     def __init__(self, binder: Any):
+        """Creates an AssetManager instance associated with a binding owner."""
         self.binder = binder
 
     def image(

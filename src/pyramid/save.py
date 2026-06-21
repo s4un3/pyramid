@@ -8,6 +8,8 @@ logger = logging.getLogger(__name__)
 
 
 class JSONStore:
+    """Persistent JSON storage with default fallback, backup handling, and atomic saves."""
+
     _copy = lambda _, o: json.loads(json.dumps(o))
 
     def __init__(
@@ -15,6 +17,7 @@ class JSONStore:
         path: str | Path,
         default_data: dict[str, Any] | None = None,
     ):
+        """Creates or loads a JSON store at the provided path, preserving defaults."""
         self._path = Path(path)
         self._default_data = (
             self._copy(default_data) if default_data is not None else {}
@@ -25,6 +28,7 @@ class JSONStore:
         self.load()
 
     def load(self) -> None:
+        """Loads JSON data from disk, restoring defaults and backing up invalid files when needed."""
         if not self._path.exists():
             self._reset_to_default()
             self.save()
@@ -55,6 +59,7 @@ class JSONStore:
             self._reset_to_default()
 
     def save(self) -> None:
+        """Atomically writes the current JSON data to disk via a temporary file."""
         temp_path = self._path.with_suffix(".tmp")
         try:
             with open(temp_path, "w", encoding="utf-8") as f:
@@ -67,9 +72,11 @@ class JSONStore:
             raise RuntimeError(f"Atomic save failed for {self._path}") from e
 
     def _reset_to_default(self) -> None:
+        """Resets the current store data to a deep copy of the default values."""
         self.data = json.loads(json.dumps(self._default_data))
 
     def __getitem__(self, key: str) -> Any:
+        """Retrieves a nested value using dot-separated keys, falling back to defaults."""
         parts = key.split(".")
 
         try:
@@ -89,6 +96,7 @@ class JSONStore:
             raise KeyError(f"Key '{key}' not found in data or defaults.")
 
     def __setitem__(self, key: str, value: Any) -> None:
+        """Sets a nested value using dot-separated keys, creating intermediate dictionaries as needed."""
         parts = key.split(".")
         current = self.data
 
@@ -100,6 +108,7 @@ class JSONStore:
         current[parts[-1]] = value
 
     def __delitem__(self, key: str) -> None:
+        """Deletes a nested key from the data store, raising if it does not exist."""
         parts = key.split(".")
         current = self.data
 
@@ -111,6 +120,7 @@ class JSONStore:
             raise KeyError(f"Key '{key}' cannot be deleted because it does not exist.")
 
     def __contains__(self, key: str) -> bool:
+        """Returns True when the given dot-separated key exists in current or default data."""
         try:
             self[key]
             return True

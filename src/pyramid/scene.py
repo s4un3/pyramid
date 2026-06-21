@@ -9,6 +9,8 @@ class SceneHaltSignal(Exception):
 
 
 class SceneManager:
+    """Manages a stack of scenes, fixed-step updates, rendering, and input routing."""
+
     def __init__(
         self,
         max_frame_time_ms: int,
@@ -16,6 +18,7 @@ class SceneManager:
         graphic_framerate: float,
         canvas: pygame.Surface | None = None,
     ):
+        """Initializes scene timing and canvas state for the manager."""
         self._scene_stack: list[Scene] = []
         self._accumulator: int = 0
         self._clock = pygame.time.Clock()
@@ -37,18 +40,21 @@ class SceneManager:
         return self._scene_stack[0]
 
     def _init_scene(self, scene: Scene):
+        """Prepares a scene before it becomes active in the scene stack."""
         scene.manager = self
         if not hasattr(scene, "canvas") or not scene.canvas:
             scene.canvas = scene.create_canvas()
         scene.enter()
 
     def push(self, scene: Scene):
+        """Pushes a new scene onto the stack, pausing the current top scene."""
         if self.top:
             self.top.lose_top()
         self._scene_stack.insert(0, scene)
         self._init_scene(scene)
 
     def pop(self):
+        """Removes the current top scene and restores the next scene below it."""
         if self.top:
 
             self.top.exit()
@@ -58,6 +64,7 @@ class SceneManager:
                 self.top.regain_top()
 
     def pop_index(self, i: int):
+        """Removes a scene by index from the stack, handling top removal if needed."""
         if not self.top:
             return
         if self.top is self._scene_stack[i]:
@@ -68,6 +75,7 @@ class SceneManager:
         self._scene_stack.remove(scene)
 
     def insert_index(self, i: int, scene: Scene):
+        """Inserts a scene at the specified index in the stack."""
         if i == len(self._scene_stack):
             self.push(scene)
             return
@@ -79,11 +87,13 @@ class SceneManager:
         self._init_scene(scene)
 
     def clear(self):
+        """Clears the entire scene stack, exiting each scene in order."""
         while self.top:
             self.pop()
 
     @staticmethod
     def _blit_center_fit(source_surf: pygame.Surface, target_surf: pygame.Surface):
+        """Blits the source surface centered and scaled to fit inside the target surface."""
         src_w, src_h = source_surf.get_size()
         tgt_w, tgt_h = target_surf.get_size()
 
@@ -99,6 +109,7 @@ class SceneManager:
         target_surf.blit(scaled_surf, scaled_rect.topleft)
 
     def _step(self, dt, _phys_dt: int):
+        """Performs one frame's event handling, physics updates, and scene drawing."""
         self._accumulator += min(self.max_frame_time_ms, dt)
 
         events = pygame.event.get()
@@ -136,6 +147,7 @@ class SceneManager:
             func()
 
     def run(self, raise_on_halt: bool = True) -> SceneHaltSignal:
+        """Starts the main loop and manages scene execution until halted."""
         try:
             while True:
                 self.dt = self._clock.tick(self.graphic_framerate)
@@ -152,9 +164,11 @@ class SceneManager:
             return e  # if recovery of the message is needed
 
     def end(self, message: str):
+        """Terminates the scene loop by raising a halt signal with a message."""
         raise SceneHaltSignal(message)
 
     def _get_canvas_scale_and_offset(self) -> tuple[float, tuple[int, int]]:
+        """Calculates scaling and letterbox offset between the manager canvas and screen."""
         src_w, src_h = self.canvas.get_size()
         tgt_w, tgt_h = self._screen.get_size()
 
@@ -200,6 +214,8 @@ class SceneManager:
 
 
 class Scene(ABC):
+    """Abstract base class for game scenes, providing lifecycle hooks and drawing behavior."""
+
     # even if it is an ABC, all current methods can be safelly left unimplemented (use default)
 
     # class values to act as defaults
@@ -215,10 +231,9 @@ class Scene(ABC):
         blit_pos: tuple[int, int] = (0, 0),
         bypass_canvas: bool = False,
     ):
-        """
-        Initializes the base Scene.
+        """Initializes the base scene with optional canvas, blit position, and bypass behavior.
 
-        `canvas` is the internal surface this scene draws onto
+        `canvas` is the internal surface this scene draws onto. If left as None, a new surface of size STD_SIZE will be created.
 
         Set `bypass_canvas` to True to skip the SceneManager blitting this scene's canvas to the main window.
         Useful if the scene doesn't draw anything, or modifies the manager's canvas or screen directly
@@ -236,19 +251,19 @@ class Scene(ABC):
         self.manager: SceneManager
 
     def enter(self) -> None:
-        "Called when the scene is first pushed onto the manager's stack"
+        """Called once when the scene is activated by the manager."""
         pass
 
     def exit(self) -> None:
-        "Called when the scene is permanently popped off the manager's stack"
+        """Called when the scene is removed from the manager and will no longer run."""
         pass
 
     def lose_top(self) -> None:
-        "Called when another scene is pushed on top of this one"
+        """Called when this scene loses top-stack focus because another scene is pushed above it."""
         pass
 
     def regain_top(self) -> None:
-        "Called when all the scenes above this one are popped, making this scene active again"
+        """Called when this scene regains top-stack focus after scenes above it are popped."""
         pass
 
     def update(
@@ -256,14 +271,11 @@ class Scene(ABC):
         dt: int,
         on_top: bool,
     ) -> bool | None:
-        "Processes game logic and physics for the scene"
+        """Updates the scene's game logic with a fixed time step."""
         pass
 
     def draw(self, on_top: bool, alpha: float) -> None:
-        """Renders the scene to its own `self.canvas`
-
-        `alpha` is the proportion of physics frames passed since the last update. Useful for interpolation
-        """
+        """Renders the scene contents to its own canvas, optionally using interpolation (alpha)."""
         pass
 
     def handle_events(

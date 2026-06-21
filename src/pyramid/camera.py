@@ -2,6 +2,7 @@ import pygame
 
 
 class Camera2D:
+    """2D camera helper for queued rendering, culling, and parallax effects."""
 
     def __init__(
         self,
@@ -9,6 +10,7 @@ class Camera2D:
         cache_precision: int = 2,
         smooth: bool = False,
     ):
+        """Initializes the camera with a render target and optional scaling cache settings (cache is used for parallax)."""
         self.target = target
         self._half_width = target.get_width() / 2
         self._half_height = target.get_height() / 2
@@ -45,6 +47,9 @@ class Camera2D:
         distance: float = 0,
         max_distance: float = float("inf"),
     ):
+        """Queues a surface for rendering using a simple camera offset and depth sorting.
+
+        Depth sorting is only relevant here if mixed with other queueing methods."""
         if distance > max_distance:
             return
 
@@ -69,6 +74,9 @@ class Camera2D:
         proximity_limit: float = 0.01,
         max_distance: float = float("inf"),
     ):
+        """Queues a surface with perspective scaling based on its z-distance.
+        
+        `zmult` acts similarly to a FOV."""
         rel_pos = pygame.Vector3(position) - pygame.Vector3(camera_pos)
 
         if rel_pos.z <= proximity_limit or rel_pos.z > max_distance:
@@ -116,6 +124,7 @@ class Camera2D:
         proximity_limit: float = 0.01,
         max_distance: float = float("inf"),
     ):
+        """Queues a surface with parallax projection without scaling."""
         rel_pos = pygame.Vector3(position) - pygame.Vector3(camera_pos)
 
         if rel_pos.z <= proximity_limit or rel_pos.z > max_distance:
