@@ -1,0 +1,134 @@
+import pygame
+
+
+class Camera2D:
+
+    def __init__(
+        self,
+        target: pygame.Surface,
+        cache_precision: int = 2,
+        smooth: bool = False,
+    ):
+        self.target = target
+        self._half_width = target.get_width() / 2
+        self._half_height = target.get_height() / 2
+        self._screen_rect = target.get_rect()
+        self.render_queue = []
+
+        self._scale_cache: dict[tuple[pygame.Surface, float], pygame.Surface] = {}
+        self.cache_precision = cache_precision
+        self.smooth = smooth
+
+    def clear_cache(self):
+        """Manually clear the cache if changing levels or scenes to free memory."""
+        self._scale_cache.clear()
+
+    def clear_queue(self):
+        """Clears the drawing queue."""
+        self.render_queue.clear()
+
+    def render(self):
+        """Sorts the queue by depth (back-to-front), draws everything and clears the queue."""
+        self.render_queue.sort(key=lambda item: item[0], reverse=True)
+
+        for item in self.render_queue:
+            _, (source, dest) = item
+            self.target.blit(source, dest)
+
+        self.clear_queue()
+
+    def simple(
+        self,
+        camera_pos: pygame.Vector2 | tuple[float, float],
+        source: pygame.Surface,
+        position: pygame.Vector2 | tuple[float, float],
+        distance: float = 0,
+        max_distance: float = float("inf"),
+    ):
+        if distance > max_distance:
+            return
+
+        dest_pos = (
+            pygame.Vector2(position)
+            - pygame.Vector2(camera_pos)
+            + pygame.Vector2(self._half_width, self._half_height)
+        )
+
+        dest_rect = source.get_rect(topleft=(int(dest_pos.x), int(dest_pos.y)))
+        if not self._screen_rect.colliderect(dest_rect):
+            return
+
+        self.render_queue.append((distance, (source, dest_rect)))
+
+    def parallax(
+        self,
+        camera_pos: pygame.Vector3 | tuple[float, float, float],
+        source: pygame.Surface,
+        position: pygame.Vector3 | tuple[float, float, float],
+        zmult: float = 1,
+        proximity_limit: float = 0.01,
+        max_distance: float = float("inf"),
+    ):
+        rel_pos = pygame.Vector3(position) - pygame.Vector3(camera_pos)
+
+        if rel_pos.z <= proximity_limit or rel_pos.z > max_distance:
+            return
+
+        scale = zmult / rel_pos.z
+
+        screen_x = self._half_width + (rel_pos.x * scale)
+        screen_y = self._half_height + (rel_pos.y * scale)
+
+        q_scale = round(scale, self.cache_precision)
+
+        if q_scale <= 0:
+            return
+
+        cache_key = (source, q_scale)
+        scaled_source = self._scale_cache.get(cache_key)
+
+        if scaled_source is None:
+            try:
+                scale = (
+                    pygame.transform.smoothscale_by
+                    if self.smooth
+                    else pygame.transform.scale_by
+                )
+                scaled_source = scale(source, q_scale)
+                self._scale_cache[cache_key] = scaled_source
+            except pygame.error:
+                return
+
+        dest_rect = scaled_source.get_rect()
+        dest_rect.center = (int(screen_x), int(screen_y))
+
+        if not self._screen_rect.colliderect(dest_rect):
+            return
+
+        self.render_queue.append((rel_pos.z, (scaled_source, dest_rect)))
+
+    def halfparallax(
+        self,
+        camera_pos: pygame.Vector3 | tuple[float, float, float],
+        source: pygame.Surface,
+        position: pygame.Vector3 | tuple[float, float, float],
+        zmult: float = 1,
+        proximity_limit: float = 0.01,
+        max_distance: float = float("inf"),
+    ):
+        rel_pos = pygame.Vector3(position) - pygame.Vector3(camera_pos)
+
+        if rel_pos.z <= proximity_limit or rel_pos.z > max_distance:
+            return
+
+        scale = zmult / rel_pos.z
+
+        screen_x = self._half_width + (rel_pos.x * scale)
+        screen_y = self._half_height + (rel_pos.y * scale)
+
+        dest_rect = source.get_rect(center=(int(screen_x), int(screen_y)))
+
+        if not self._screen_rect.colliderect(dest_rect):
+            return
+
+        self.render_queue.append((rel_pos.z, (source, dest_rect)))

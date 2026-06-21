@@ -40,7 +40,6 @@ class BoundCache(Generic[K, V, B]):
             self._cache.pop(key, None)
 
     def fetch_or_load(self, key: K, binder: B, load_func: Callable[[], V]) -> V:
-        """Retrieves an asset from cache or loads it, managing the tripartite binding."""
         if key not in self._cache:
             self._cache[key] = load_func()
 
