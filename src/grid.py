@@ -1,4 +1,4 @@
-from typing import TypeVar, Generic, Iterator, Generator
+from typing import TypeVar, Generic, Generator
 import pygame
 
 K = TypeVar("K")

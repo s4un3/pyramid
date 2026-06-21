@@ -1,5 +1,5 @@
 import pygame
-from singleton import Singleton
+from typing import Self
 from enum import StrEnum
 
 
@@ -12,7 +12,13 @@ class Track(StrEnum):
     AUXILIAR = "aux"
 
 
-class AudioManager(Singleton):
+class AudioManager:
+    _instance: Self | None = None
+
+    def __new__(cls) -> Self:
+        if cls._instance is None:
+            cls._instance = super().__new__(cls)
+        return cls._instance
 
     _channels: dict[Track, list[pygame.mixer.Channel]] = {}
     _track_volumes: dict[Track, float] = {}

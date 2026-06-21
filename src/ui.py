@@ -1,81 +1,152 @@
 from abc import ABC, abstractmethod
 from dataclasses import dataclass
+from enum import StrEnum
 from typing import Callable, Dict, List, Optional, Tuple, Union, Any
 import pygame
 
-pygame.init()
-
-# type aliases to keep signatures clean
+# Type aliases to keep signatures clean
 ColorRGBA = Tuple[int, int, int, int]
 LineItem = Tuple[Union[pygame.Surface, str], int, int, bool]
 LineLayout = Tuple[List[LineItem], int, int]
 TextSource = Union[str, Callable[[], str]]
 
 
+class UIAlignmentH(StrEnum):
+    LEFT = "left"
+    CENTER = "center"
+    RIGHT = "right"
+
+
+class UIAlignmentV(StrEnum):
+    TOP = "top"
+    CENTER = "center"
+    BOTTOM = "bottom"
+
+
+class UISize(StrEnum):
+    AUTO = "auto"
+
+
+class ImageScaleMode(StrEnum):
+    NONE = "none"  # stay the same size
+    FIT = "fit"  # rescale keeping aspect ratio
+    STRETCH = "stretch"  # stretch to fill the area
+
+
+class PanelOrientation(StrEnum):
+    VERTICAL = "vertical"
+    HORIZONTAL = "horizontal"
+
+
 @dataclass
 class UIStyle:
-    """Groups styling configuration to prevent parameter bloat on individual elements."""
+    """Groups styling configuration. font can be None for non-text components."""
 
-    font: pygame.font.Font
+    font: Optional[pygame.font.Font] = None
     text_color: ColorRGBA = (255, 255, 255, 255)
     bg_color: Optional[ColorRGBA] = (0, 0, 0, 100)
     hover_color: ColorRGBA = (70, 70, 70, 100)
     border_color: Optional[ColorRGBA] = (255, 255, 255, 255)
     border_width: int = 1
     padding: Union[int, Tuple[int, int, int, int]] = 4  # top, right, bottom, left
-    align_h: str = "center"
-    align_v: str = "center"
+    align_h: UIAlignmentH = UIAlignmentH.CENTER
+    align_v: UIAlignmentV = UIAlignmentV.CENTER
     line_spacing: int = 4
 
 
 class UIElement(ABC):
-    """Base framework component tracking dimensions, style settings, and the low-level rendering loop."""
+    """Abstract base framework tracking box-model bounds and surface preparation."""
 
     def __init__(
         self,
-        width: Union[int, str],
-        height: Union[int, str],
         style: UIStyle,
+        width: Union[int, UISize] = UISize.AUTO,
+        height: Union[int, UISize] = UISize.AUTO,
     ):
         self.requested_width = width
         self.requested_height = height
         self.style = style
 
-        self.width: int = 0 if width == "auto" else int(width)
-        self.height: int = 0 if height == "auto" else int(height)
+        self.width: int = 0 if width == UISize.AUTO else int(width)
+        self.height: int = 0 if height == UISize.AUTO else int(height)
 
-        self.padding: Tuple[int, int, int, int]
         if isinstance(style.padding, int):
-            self.padding = (
-                style.padding,
-                style.padding,
-                style.padding,
-                style.padding,
-            )
+            self.padding = (style.padding,) * 4
         else:
             self.padding = style.padding
 
         self.absolute_rect = pygame.Rect(0, 0, self.width, self.height)
 
-    def _get_active_text(self, text_source: TextSource) -> str:
-        """Helper to resolve either a static string or a dynamic callable into a string."""
-        if callable(text_source):
-            return str(text_source())
-        return str(text_source)
+    @abstractmethod
+    def update_dimensions(self) -> None:
+        """Calculate and set concrete values for self.width and self.height if 'auto'."""
+        pass
 
-    def calculate_layout(
-        self, text: TextSource, inline_surfaces: Dict[str, pygame.Surface]
-    ) -> Tuple[List[LineLayout], int, int, int]:
-        """Calculates textual layout matrices, line breaks, and bounding constraints."""
-        resolved_text = self._get_active_text(text)
+    def prepare_base_surface(
+        self, w: int, h: int, bg_override: Optional[ColorRGBA] = None
+    ) -> pygame.Surface:
+        """Generates a standard background canvas with optional borders applied."""
+        surf = pygame.Surface((w, h), pygame.SRCALPHA)
+        bg = bg_override if bg_override is not None else self.style.bg_color
+        if bg:
+            surf.fill(bg)
 
+        if self.style.border_color and self.style.border_width > 0:
+            pygame.draw.rect(
+                surf,
+                self.style.border_color,
+                (0, 0, w, h),
+                self.style.border_width,
+            )
+        return surf
+
+    def handle_event(
+        self, event: pygame.event.Event, mouse_pos: Tuple[int, int]
+    ) -> None:
+        pass
+
+    @abstractmethod
+    def render(self, topleft: Tuple[int, int]) -> Tuple[pygame.Surface, pygame.Rect]:
+        pass
+
+
+class UITextElement(UIElement, ABC):
+    """Intermediate base for nodes managing complex typographic wrapping and text metrics."""
+
+    def __init__(
+        self,
+        text: TextSource,
+        style: UIStyle,
+        width: Union[int, UISize] = UISize.AUTO,
+        height: Union[int, UISize] = UISize.AUTO,
+        inline_surfaces: Optional[Dict[str, pygame.Surface]] = None,
+    ):
+        if style.font is None:
+            raise ValueError(
+                "UITextElement implementations require a valid pygame.font.Font in UIStyle."
+            )
+        super().__init__(style, width, height)
+        self.text = text
+        self.inline_surfaces = inline_surfaces if inline_surfaces else {}
+        self._cached_line_data: List[LineLayout] = []
+        self._cached_text_height: int = 0
+
+    def _get_active_text(self) -> str:
+        if isinstance(self.text, str):
+            return str(self.text)
+        return str(self.text())
+
+    def update_dimensions(self) -> None:
+        """Calculates textual layout dimensions, structural wraps, and bounding boxes."""
+        resolved_text = self._get_active_text()
         pad_top, pad_right, pad_bottom, pad_left = self.padding
         font = self.style.font
+        assert not (font is None)
         space_width = font.size(" ")[0]
 
         max_usable_w = (
             self.width - pad_left - pad_right
-            if self.requested_width != "auto"
+            if self.requested_width != UISize.AUTO
             else float("inf")
         )
 
@@ -85,8 +156,8 @@ class UIElement(ABC):
         current_width = 0
 
         for word in words:
-            if word in inline_surfaces:
-                item_surf = inline_surfaces[word]
+            if word in self.inline_surfaces:
+                item_surf = self.inline_surfaces[word]
                 item_w, item_h = item_surf.get_size()
                 if current_width + item_w > max_usable_w and current_line:
                     lines.append(current_line)
@@ -104,8 +175,8 @@ class UIElement(ABC):
         if current_line:
             lines.append(current_line)
 
-        line_data: List[LineLayout] = []
-        total_text_height = 0
+        self._cached_line_data = []
+        self._cached_text_height = 0
         max_line_width = 0
 
         for line in lines:
@@ -114,63 +185,51 @@ class UIElement(ABC):
             max_h = max(item[2] for item in line)
             line_w = sum(item[1] for item in line) + (space_width * (len(line) - 1))
             max_line_width = max(max_line_width, line_w)
-            line_data.append((line, line_w, max_h))
-            total_text_height += max_h + self.style.line_spacing
+            self._cached_line_data.append((line, line_w, max_h))
+            self._cached_text_height += max_h + self.style.line_spacing
 
-        if total_text_height > 0:
-            total_text_height -= self.style.line_spacing
+        if self._cached_text_height > 0:
+            self._cached_text_height -= self.style.line_spacing
 
-        final_w = (
+        self.width = (
             max_line_width + pad_left + pad_right
-            if self.requested_width == "auto"
-            else self.width
+            if self.requested_width == UISize.AUTO
+            else int(self.requested_width)
         )
-        final_h = (
-            total_text_height + pad_top + pad_bottom
-            if self.requested_height == "auto"
-            else self.height
+        self.height = (
+            self._cached_text_height + pad_top + pad_bottom
+            if self.requested_height == UISize.AUTO
+            else int(self.requested_height)
         )
+        self.absolute_rect.size = (self.width, self.height)
 
-        self.width, self.height = final_w, final_h
-        self.absolute_rect.size = (final_w, final_h)
-
-        return line_data, total_text_height, final_w, final_h
-
-    def draw_base_layout(
-        self,
-        text: TextSource,
-        inline_surfaces: Dict[str, pygame.Surface],
-        bg_override: Optional[ColorRGBA] = None,
+    def draw_text_layout(
+        self, bg_override: Optional[ColorRGBA] = None
     ) -> pygame.Surface:
-        """Executes rendering logic into a finalized surface buffer canvas."""
-        line_data, total_text_height, w, h = self.calculate_layout(
-            text, inline_surfaces
-        )
+        """Draws the text alignment hierarchy inside the calculated surface boundary."""
 
-        surf = pygame.Surface((w, h), pygame.SRCALPHA)
-        bg = bg_override if bg_override is not None else self.style.bg_color
-        if bg:
-            surf.fill(bg)
+        assert not (self.style.font is None)
+        surf = self.prepare_base_surface(self.width, self.height, bg_override)
+        pad_top, pad_right, pad_bottom, pad_left = self.padding
 
-        pad_top, _, _, pad_left = self.padding
-        usable_width = max(0, w - pad_left - self.padding[1])
-        usable_height = max(0, h - pad_top - self.padding[2])
+        usable_width = max(0, self.width - pad_left - pad_right)
+        usable_height = max(0, self.height - pad_top - pad_bottom)
 
         match self.style.align_v:
-            case "center":
-                y_offset = pad_top + (usable_height - total_text_height) // 2
-            case "bottom":
-                y_offset = pad_top + (usable_height - total_text_height)
-            case "top" | _:
+            case UIAlignmentV.CENTER:
+                y_offset = pad_top + (usable_height - self._cached_text_height) // 2
+            case UIAlignmentV.BOTTOM:
+                y_offset = pad_top + (usable_height - self._cached_text_height)
+            case UIAlignmentV.TOP | _:
                 y_offset = pad_top
 
-        for line, line_w, max_h in line_data:
+        for line, line_w, max_h in self._cached_line_data:
             match self.style.align_h:
-                case "center":
+                case UIAlignmentH.CENTER:
                     x_offset = pad_left + (usable_width - line_w) // 2
-                case "right":
+                case UIAlignmentH.RIGHT:
                     x_offset = pad_left + (usable_width - line_w)
-                case "left" | _:
+                case UIAlignmentH.LEFT | _:
                     x_offset = pad_left
 
             for item, item_w, item_h, is_surface in line:
@@ -184,50 +243,28 @@ class UIElement(ABC):
 
             y_offset += max_h + self.style.line_spacing
 
-        if self.style.border_color and self.style.border_width > 0:
-            pygame.draw.rect(
-                surf,
-                self.style.border_color,
-                (0, 0, w, h),
-                self.style.border_width,
-            )
-
         return surf
 
-    def handle_event(
-        self, event: pygame.event.Event, mouse_pos: Tuple[int, int]
-    ) -> None:
-        pass
 
-    @abstractmethod
-    def render(self, topleft: Tuple[int, int]) -> Tuple[pygame.Surface, pygame.Rect]:
-        pass
-
-
-class UIButton(UIElement):
+class UIButton(UITextElement):
 
     def __init__(
         self,
         text: TextSource,
         style: UIStyle,
-        width: Union[int, str] = "auto",
-        height: Union[int, str] = "auto",
+        width: Union[int, UISize] = UISize.AUTO,
+        height: Union[int, UISize] = UISize.AUTO,
         on_click: Optional[Callable[[], None]] = None,
         inline_surfaces: Optional[Dict[str, pygame.Surface]] = None,
     ):
-        super().__init__(width, height, style)
-        self.text = text
+        super().__init__(text, style, width, height, inline_surfaces)
         self.on_click = on_click
-        self.inline_surfaces = inline_surfaces if inline_surfaces else {}
         self.is_hovered = False
 
     def render(self, topleft: Tuple[int, int]) -> Tuple[pygame.Surface, pygame.Rect]:
         self.absolute_rect.topleft = topleft
         current_bg = self.style.hover_color if self.is_hovered else self.style.bg_color
-
-        button_surf = self.draw_base_layout(
-            self.text, self.inline_surfaces, bg_override=current_bg
-        )
+        button_surf = self.draw_text_layout(bg_override=current_bg)
         return button_surf, self.absolute_rect
 
     def handle_event(
@@ -249,24 +286,90 @@ class UIButton(UIElement):
                     self.on_click()
 
 
-class UITextBox(UIElement):
-
-    def __init__(
-        self,
-        text: TextSource,
-        style: UIStyle,
-        width: Union[int, str] = "auto",
-        height: Union[int, str] = "auto",
-        inline_surfaces: Optional[Dict[str, pygame.Surface]] = None,
-    ):
-        super().__init__(width, height, style)
-        self.text = text
-        self.inline_surfaces = inline_surfaces if inline_surfaces else {}
+class UITextBox(UITextElement):
 
     def render(self, topleft: Tuple[int, int]) -> Tuple[pygame.Surface, pygame.Rect]:
         self.absolute_rect.topleft = topleft
-        box_surf = self.draw_base_layout(self.text, self.inline_surfaces)
+        box_surf = self.draw_text_layout()
         return box_surf, self.absolute_rect
+
+
+class UIImage(UIElement):
+    """A generic element relying on an image surface with configurable scaling policies."""
+
+    def __init__(
+        self,
+        image: pygame.Surface,
+        width: Union[int, UISize] = UISize.AUTO,
+        height: Union[int, UISize] = UISize.AUTO,
+        scale_mode: ImageScaleMode = ImageScaleMode.FIT,
+        style: Optional[UIStyle] = None,
+    ):
+        super().__init__(style or UIStyle(font=None), width, height)
+        self.original_image = image
+        self.scale_mode = scale_mode
+
+    def update_dimensions(self) -> None:
+        pad_top, pad_right, pad_bottom, pad_left = self.padding
+        img_w, img_h = self.original_image.get_size()
+
+        self.width = (
+            img_w + pad_left + pad_right
+            if self.requested_width == UISize.AUTO
+            else int(self.requested_width)
+        )
+        self.height = (
+            img_h + pad_top + pad_bottom
+            if self.requested_height == UISize.AUTO
+            else int(self.requested_height)
+        )
+        self.absolute_rect.size = (self.width, self.height)
+
+    def render(self, topleft: Tuple[int, int]) -> Tuple[pygame.Surface, pygame.Rect]:
+        self.absolute_rect.topleft = topleft
+        surf = self.prepare_base_surface(self.width, self.height)
+
+        pad_top, pad_right, pad_bottom, pad_left = self.padding
+        usable_w = max(0, self.width - pad_left - pad_right)
+        usable_h = max(0, self.height - pad_top - pad_bottom)
+
+        if usable_w <= 0 or usable_h <= 0:
+            return surf, self.absolute_rect
+
+        img_w, img_h = self.original_image.get_size()
+
+        match self.scale_mode:
+            case ImageScaleMode.NONE:
+                cx = pad_left + (usable_w - img_w) // 2
+                cy = pad_top + (usable_h - img_h) // 2
+
+                clip_rect = pygame.Rect(pad_left, pad_top, usable_w, usable_h)
+                surf.blit(self.original_image, (cx, cy), area=clip_rect.move(-cx, -cy))
+
+            case ImageScaleMode.FIT:
+                aspect_ratio = img_w / img_h
+                if usable_w / usable_h > aspect_ratio:
+                    new_h = usable_h
+                    new_w = int(usable_h * aspect_ratio)
+                else:
+                    new_w = usable_w
+                    new_h = int(usable_w / aspect_ratio)
+
+                if new_w > 0 and new_h > 0:
+                    render_img = pygame.transform.scale(
+                        self.original_image, (new_w, new_h)
+                    )
+                    cx = pad_left + (usable_w - new_w) // 2
+                    cy = pad_top + (usable_h - new_h) // 2
+                    surf.blit(render_img, (cx, cy))
+
+            case ImageScaleMode.STRETCH:
+                render_img = pygame.transform.scale(
+                    self.original_image, (usable_w, usable_h)
+                )
+                surf.blit(render_img, (pad_left, pad_top))
+
+        return surf, self.absolute_rect
 
 
 class UIPanel:
@@ -277,7 +380,7 @@ class UIPanel:
         x: int,
         y: int,
         spacing: int = 10,
-        orientation: str = "vertical",
+        orientation: PanelOrientation = PanelOrientation.VERTICAL,
         bg_color: Optional[ColorRGBA] = None,
         padding: int = 10,
     ):
@@ -298,12 +401,8 @@ class UIPanel:
             child.handle_event(event, mouse_pos)
 
     def render(self, surface: pygame.Surface) -> None:
-        # dynamic check across any element supporting layout calculation via text
         for child in self.children:
-            if hasattr(child, "text") and hasattr(child, "calculate_layout"):
-                child.calculate_layout(
-                    child.text, getattr(child, "inline_surfaces", {})
-                )
+            child.update_dimensions()
 
         current_x = self.rect.x + self.padding
         current_y = self.rect.y + self.padding
@@ -314,14 +413,14 @@ class UIPanel:
         child_positions = []
         for child in self.children:
             child_positions.append((current_x, current_y))
-            if self.orientation == "vertical":
+            if self.orientation == PanelOrientation.VERTICAL:
                 current_y += child.height + self.spacing
                 max_w = max(max_w, child.width)
             else:
                 current_x += child.width + self.spacing
                 max_h = max(max_h, child.height)
 
-        if self.orientation == "vertical":
+        if self.orientation == PanelOrientation.VERTICAL:
             self.rect.width = max_w + (self.padding * 2)
             self.rect.height = (
                 (current_y - self.spacing - self.rect.y) + self.padding
