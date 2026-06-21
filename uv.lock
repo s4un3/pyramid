@@ -33,7 +33,7 @@ sdist = { url = "https://files.pythonhosted.org/packages/49/cc/08bba60f00541f62a
 [[package]]
 name = "pyramid"
 version = "0.1.0"
-source = { virtual = "." }
+source = { editable = "." }
 dependencies = [
     { name = "cython" },
     { name = "pygame" },
