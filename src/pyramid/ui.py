@@ -5,18 +5,18 @@ from enum import StrEnum
 import pygame
 
 __all__ = [
-    'ImageScaleMode',
-    'PanelOrientation',
-    'UIAlignmentH',
-    'UIAlignmentV',
-    'UIButton',
-    'UIElement',
-    'UIImage',
-    'UIPanel',
-    'UISize',
-    'UIStyle',
-    'UITextBox',
-    'UITextElement',
+    "ImageScaleMode",
+    "PanelOrientation",
+    "UIAlignmentH",
+    "UIAlignmentV",
+    "UIButton",
+    "UIElement",
+    "UIImage",
+    "UIPanel",
+    "UISize",
+    "UIStyle",
+    "UITextBox",
+    "UITextElement",
 ]
 
 
@@ -222,9 +222,7 @@ class UITextElement(UIElement, ABC):
         )
         self.absolute_rect.size = (self.width, self.height)
 
-    def draw_text_layout(
-        self, bg_override: ColorRGBA | None = None
-    ) -> pygame.Surface:
+    def draw_text_layout(self, bg_override: ColorRGBA | None = None) -> pygame.Surface:
         """Draws the text with inline surfaces and alignment into the prepared surface."""
 
         assert not (self.style.font is None)

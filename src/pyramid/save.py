@@ -5,15 +5,14 @@ from pathlib import Path
 from typing import Any
 
 __all__ = [
-    'JSONStore',
+    "JSONStore",
 ]
 
 
 class JSONStore:
+    """Persistent JSON storage with default fallback, backup handling, and atomic saves."""
 
     logger = logging.getLogger(__name__)
-
-    """Persistent JSON storage with default fallback, backup handling, and atomic saves."""
 
     _copy = lambda _, o: json.loads(json.dumps(o))
 

@@ -3,14 +3,15 @@ import pygame
 from collections.abc import Callable
 
 __all__ = [
-    'Scene',
-    'SceneHaltSignal',
-    'SceneManager',
+    "Scene",
+    "SceneHaltSignal",
+    "SceneManager",
 ]
 
 
-
 class SceneHaltSignal(Exception):
+    """Raised by a Scene to signal a halt of the game/simulation"""
+
     pass
 
 
