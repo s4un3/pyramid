@@ -6,6 +6,7 @@ import pygame as _pygame
 
 __all__ = [
     "ImageScaleMode",
+    "Layoutable",
     "PanelOrientation",
     "UIAlignmentH",
     "UIAlignmentV",
@@ -72,7 +73,28 @@ class UIStyle:
     line_spacing: int = 4
 
 
-class UIElement(_ABC):
+class Layoutable(_ABC):
+    """Abstract base class for components with dirty flag tracking and dimension updates."""
+
+    def __init__(self):
+        self._dirty = True
+
+    def mark_dirty(self) -> None:
+        """Mark this component as needing dimension recalculation."""
+        self._dirty = True
+
+    def ensure_updated(self) -> None:
+        """Ensure dimensions are up to date, recalculating if marked dirty."""
+        if self._dirty:
+            self.update_dimensions()
+
+    @_abstractmethod
+    def update_dimensions(self) -> None:
+        """Update dimensions based on content and constraints."""
+        pass
+
+
+class UIElement(Layoutable):
     """Abstract base class for UI elements supporting layout, rendering, and event handling."""
 
     def __init__(
@@ -81,6 +103,7 @@ class UIElement(_ABC):
         width: int | UISize = UISize.AUTO,
         height: int | UISize = UISize.AUTO,
     ):
+        super().__init__()
         self.requested_width = width
         self.requested_height = height
         self.style = style
@@ -129,7 +152,9 @@ class UIElement(_ABC):
 
     @_abstractmethod
     def render(self, topleft: tuple[int, int]) -> tuple[_pygame.Surface, _pygame.Rect]:
-        """Renders the UI element at the requested position and returns its surface and rect."""
+        """Renders the UI element at the requested position and returns its surface and rect.
+        
+        It is of utmost importance to call `ensure_updated` before rendering."""
         pass
 
 
@@ -153,6 +178,13 @@ class UITextElement(UIElement, _ABC):
         self.inline_surfaces = inline_surfaces if inline_surfaces else {}
         self._cached_line_data: list[LineLayout] = []
         self._cached_text_height: int = 0
+        self._last_resolved_text: str = ""
+    
+    def ensure_updated(self):
+        if self._get_active_text() != self._last_resolved_text:
+            self.mark_dirty()
+        return super().ensure_updated()
+
 
     def _get_active_text(self) -> str:
         """Resolves either literal text or a callable text source to a string."""
@@ -226,11 +258,13 @@ class UITextElement(UIElement, _ABC):
             else int(self.requested_height)
         )
         self.absolute_rect.size = (self.width, self.height)
+        self._dirty = False
 
     def draw_text_layout(self, bg_override: ColorRGBA | None = None) -> _pygame.Surface:
         """Draws the text with inline surfaces and alignment into the prepared surface."""
 
         assert self.style.font is not None
+        self.ensure_updated()
         surf = self.prepare_base_surface(self.width, self.height, bg_override)
         pad_top, pad_right, pad_bottom, pad_left = self.padding
 
@@ -285,6 +319,7 @@ class UIButton(UITextElement):
         self.is_hovered = False
 
     def render(self, topleft: tuple[int, int]) -> tuple[_pygame.Surface, _pygame.Rect]:
+        self.ensure_updated()
         self.absolute_rect.topleft = topleft
         current_bg = self.style.hover_color if self.is_hovered else self.style.bg_color
         button_surf = self.draw_text_layout(bg_override=current_bg)
@@ -313,6 +348,7 @@ class UITextBox(UITextElement):
     """Simple text box element that renders text to a surface."""
 
     def render(self, topleft: tuple[int, int]) -> tuple[_pygame.Surface, _pygame.Rect]:
+        self.ensure_updated()
         self.absolute_rect.topleft = topleft
         box_surf = self.draw_text_layout()
         return box_surf, self.absolute_rect
@@ -348,8 +384,10 @@ class UIImage(UIElement):
             else int(self.requested_height)
         )
         self.absolute_rect.size = (self.width, self.height)
+        self._dirty = False
 
     def render(self, topleft: tuple[int, int]) -> tuple[_pygame.Surface, _pygame.Rect]:
+        self.ensure_updated()
         self.absolute_rect.topleft = topleft
         surf = self.prepare_base_surface(self.width, self.height)
 
@@ -414,6 +452,7 @@ class UIInputTextBox(UITextElement):
         self.is_focused = False
 
     def render(self, topleft: tuple[int, int]) -> tuple[_pygame.Surface, _pygame.Rect]:
+        self.ensure_updated()
         self.absolute_rect.topleft = topleft
 
         input_surf = self.draw_text_layout()
@@ -428,17 +467,17 @@ class UIInputTextBox(UITextElement):
         if self.is_focused and event.type == _pygame.KEYDOWN:
             if event.key == _pygame.K_BACKSPACE:
                 self._input_string = self._input_string[:-1]
-                self.update_dimensions()
+                self.mark_dirty()
             elif event.key in (_pygame.K_RETURN, _pygame.K_KP_ENTER):
                 if self.on_submit:
                     self.on_submit(self._input_string)
             else:
                 if event.unicode and event.unicode.isprintable():
                     self._input_string += event.unicode
-                    self.update_dimensions()
+                    self.mark_dirty()
 
 
-class UIPanel:
+class UIPanel(UIElement):
     """Container for arranging UI elements in a row or column with padding and spacing."""
 
     def __init__(
@@ -449,7 +488,11 @@ class UIPanel:
         orientation: PanelOrientation = PanelOrientation.VERTICAL,
         bg_color: ColorRGBA | None = None,
         padding: int = 10,
+        width: int | UISize = UISize.AUTO,
+        height: int | UISize = UISize.AUTO,
     ):
+        super().__init__(style=UIStyle(bg_color=bg_color, padding=padding), width=width, height=height)
+        
         self.rect = _pygame.Rect(x, y, 0, 0)
         self.spacing = spacing
         self.orientation = orientation
@@ -459,6 +502,45 @@ class UIPanel:
 
     def add_child(self, child: UIElement) -> None:
         self.children.append(child)
+        self.mark_dirty()
+    
+    def update_dimensions(self) -> None:
+        """Calculate panel layout and dimensions based on children."""
+        for child in self.children:
+            child.ensure_updated()
+
+        current_x = self.padding
+        current_y = self.padding
+
+        max_w = 0
+        max_h = 0
+
+        for child in self.children:
+            if self.orientation == PanelOrientation.VERTICAL:
+                max_w = max(max_w, child.width)
+                current_y += child.height + self.spacing
+            else:
+                max_h = max(max_h, child.height)
+                current_x += child.width + self.spacing
+
+        if self.orientation == PanelOrientation.VERTICAL:
+            self.width = max_w + (self.padding * 2)
+            self.height = (
+                current_y - self.spacing + self.padding
+                if self.children
+                else self.padding * 2
+            )
+        else:
+            self.height = max_h + (self.padding * 2)
+            self.width = (
+                current_x - self.spacing + self.padding
+                if self.children
+                else self.padding * 2
+            )
+
+        self.rect.size = (self.width, self.height)
+        self.absolute_rect.size = (self.width, self.height)
+        self._dirty = False
 
     def handle_event(
         self, event: _pygame.event.Event, mouse_pos: tuple[int, int]
@@ -473,39 +555,20 @@ class UIPanel:
         if topleft is not None:
             self.rect.topleft = topleft
 
-        for child in self.children:
-            child.update_dimensions()
+        # Ensure layout is up to date
+        self.ensure_updated()
 
+        # Calculate child positions
         current_x = self.padding
         current_y = self.padding
-
-        max_w = 0
-        max_h = 0
 
         child_positions = []
         for child in self.children:
             child_positions.append((current_x, current_y))
             if self.orientation == PanelOrientation.VERTICAL:
                 current_y += child.height + self.spacing
-                max_w = max(max_w, child.width)
             else:
                 current_x += child.width + self.spacing
-                max_h = max(max_h, child.height)
-
-        if self.orientation == PanelOrientation.VERTICAL:
-            self.rect.width = max_w + (self.padding * 2)
-            self.rect.height = (
-                current_y - self.spacing + self.padding
-                if self.children
-                else self.padding * 2
-            )
-        else:
-            self.rect.height = max_h + (self.padding * 2)
-            self.rect.width = (
-                current_x - self.spacing + self.padding
-                if self.children
-                else self.padding * 2
-            )
 
         panel_surf = _pygame.Surface(self.rect.size, _pygame.SRCALPHA)
         if self.bg_color:
@@ -569,7 +632,7 @@ class UIScrollPanel(UIPanel):
 
     def update_dimensions(self) -> None:
         for child in self.children:
-            child.update_dimensions()
+            child.ensure_updated()
 
         current_x = self.padding
         current_y = self.padding
@@ -608,6 +671,7 @@ class UIScrollPanel(UIPanel):
         self.rect.size = (self.width, self.height)
         self.max_scroll_distance = self._resolve_max_scroll(content_w, content_h)
         self.scroll_offset = min(self.scroll_offset, self.max_scroll_distance)
+        self._dirty = False
 
     def _apply_scroll_event(self, event: _pygame.event.Event) -> None:
         if event.type == _pygame.MOUSEWHEEL:
@@ -642,7 +706,8 @@ class UIScrollPanel(UIPanel):
         if topleft is not None:
             self.rect.topleft = topleft
 
-        self.update_dimensions()
+        # Ensure layout is up to date
+        self.ensure_updated()
 
         current_x = self.padding
         current_y = self.padding
