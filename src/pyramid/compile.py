@@ -5,6 +5,11 @@ from Cython.Build import cythonize
 from setuptools import Extension
 from setuptools.dist import Distribution
 
+__all__ = [
+    'CythonCompiler',
+]
+
+
 
 class CythonCompiler:
     """Compiles Python and Cython source files from a project into a build directory."""

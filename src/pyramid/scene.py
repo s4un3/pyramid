@@ -2,6 +2,13 @@ from abc import ABC
 import pygame
 from collections.abc import Callable
 
+__all__ = [
+    'Scene',
+    'SceneHaltSignal',
+    'SceneManager',
+]
+
+
 
 class SceneHaltSignal(Exception):
     pass

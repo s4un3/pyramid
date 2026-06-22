@@ -4,10 +4,15 @@ import logging
 from pathlib import Path
 from typing import Any
 
-logger = logging.getLogger(__name__)
+__all__ = [
+    'JSONStore',
+]
 
 
 class JSONStore:
+
+    logger = logging.getLogger(__name__)
+
     """Persistent JSON storage with default fallback, backup handling, and atomic saves."""
 
     _copy = lambda _, o: json.loads(json.dumps(o))

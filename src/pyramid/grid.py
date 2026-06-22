@@ -1,6 +1,11 @@
 from typing import TypeVar, Generic, Generator
 import pygame
 
+__all__ = [
+    'GridManager',
+]
+
+
 K = TypeVar("K")
 
 

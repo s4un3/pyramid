@@ -2,6 +2,12 @@ import pygame
 from typing import Self
 from enum import StrEnum
 
+__all__ = [
+    'AudioManager',
+    'Track',
+]
+
+
 
 class Track(StrEnum):
     MUSIC = "mx"

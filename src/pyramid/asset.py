@@ -3,6 +3,12 @@ import pygame
 from collections.abc import Callable
 from typing import Any, Generic, TypeVar
 
+__all__ = [
+    'AssetManager',
+    'BoundCache',
+]
+
+
 K = TypeVar("K")  # key (usually a tuple)
 V = TypeVar("V")  # value (eg asset)
 B = TypeVar("B")  # binder

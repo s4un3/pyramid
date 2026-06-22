@@ -1,5 +1,10 @@
 import pygame
 
+__all__ = [
+    'Camera2D',
+]
+
+
 
 class Camera2D:
     """2D camera helper for queued rendering, culling, and parallax effects."""
