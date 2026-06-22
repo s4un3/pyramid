@@ -139,7 +139,14 @@ class SceneManager:
 
         consumed = False
         for scene in self._scene_stack:
-            if scene.handle_events(events, on_top=scene is self.top, consumed=consumed):
+            mouse_pos = self.screen_to_scene(_pygame.mouse.get_pos(), scene)
+
+            if scene.handle_events(
+                events,
+                (int(mouse_pos[0]), int(mouse_pos[1])),
+                on_top=scene is self.top,
+                consumed=consumed,
+            ):
                 # returned True: mark events as consumed
                 consumed = True
 
@@ -293,9 +300,15 @@ class Scene(_ABC):
         pass
 
     def handle_events(
-        self, events: list[_pygame.event.Event], on_top: bool, consumed: bool
+        self,
+        events: list[_pygame.event.Event],
+        mouse_pos: tuple[int, int],
+        on_top: bool,
+        consumed: bool,
     ) -> bool:
         """Handle events, like key and mouse presses (not continuous)
+
+        `mouse_pos` is already in the canvas' coordinate system.
 
         Will mark events as consumed for scenes below it if True is returned"""
         return False

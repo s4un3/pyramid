@@ -160,7 +160,7 @@ class UITextElement(UIElement, _ABC):
         resolved_text = self._get_active_text()
         pad_top, pad_right, pad_bottom, pad_left = self.padding
         font = self.style.font
-        assert not (font is None)
+        assert font is not None
         space_width = font.size(" ")[0]
 
         max_usable_w = (
@@ -225,7 +225,7 @@ class UITextElement(UIElement, _ABC):
     def draw_text_layout(self, bg_override: ColorRGBA | None = None) -> _pygame.Surface:
         """Draws the text with inline surfaces and alignment into the prepared surface."""
 
-        assert not (self.style.font is None)
+        assert self.style.font is not None
         surf = self.prepare_base_surface(self.width, self.height, bg_override)
         pad_top, pad_right, pad_bottom, pad_left = self.padding
 
