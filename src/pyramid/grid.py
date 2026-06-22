@@ -1,15 +1,15 @@
-from typing import TypeVar, Generic, Generator
-import pygame
+from typing import TypeVar as _TypeVar, Generic as _Generic, Generator as _Generator
+import pygame as _pygame
 
 __all__ = [
-    'GridManager',
+    "GridManager",
 ]
 
 
-K = TypeVar("K")
+K = _TypeVar("K")
 
 
-class GridManager(Generic[K]):
+class GridManager(_Generic[K]):
     """Manages grid cell layout and mapping between grid indexes and pixel coordinates."""
 
     def __init__(
@@ -58,10 +58,10 @@ class GridManager(Generic[K]):
             return col, row
         return None
 
-    def get_cell_rect(self, col: int, row: int) -> pygame.Rect:
+    def get_cell_rect(self, col: int, row: int) -> _pygame.Rect:
         """Returns a Pygame Rect for the specified cell."""
         x, y = self.grid_to_pixel(col, row)
-        return pygame.Rect(x, y, self.cell_size, self.cell_size)
+        return _pygame.Rect(x, y, self.cell_size, self.cell_size)
 
     def get_by_grid(self, col: int, row: int) -> K | None:
         """Gets the item at the specified grid column and row."""
@@ -98,7 +98,7 @@ class GridManager(Generic[K]):
         self._matrix = [[None for _ in range(self.cols)] for _ in range(self.rows)]
         self._occupied_cells.clear()
 
-    def items(self) -> Generator[tuple[tuple[int, int], K], None, None]:
+    def items(self) -> _Generator[tuple[tuple[int, int], K], None, None]:
         """Yields ((col, row), value) for all active (not None) elements."""
         for coord, val in self._occupied_cells.items():
             yield coord, val

@@ -1,9 +1,8 @@
-import pygame
+import pygame as _pygame
 
 __all__ = [
-    'Camera2D',
+    "Camera2D",
 ]
-
 
 
 class Camera2D:
@@ -11,7 +10,7 @@ class Camera2D:
 
     def __init__(
         self,
-        target: pygame.Surface,
+        target: _pygame.Surface,
         cache_precision: int = 2,
         smooth: bool = False,
     ):
@@ -22,7 +21,7 @@ class Camera2D:
         self._screen_rect = target.get_rect()
         self.render_queue = []
 
-        self._scale_cache: dict[tuple[pygame.Surface, float], pygame.Surface] = {}
+        self._scale_cache: dict[tuple[_pygame.Surface, float], _pygame.Surface] = {}
         self.cache_precision = cache_precision
         self.smooth = smooth
 
@@ -46,9 +45,9 @@ class Camera2D:
 
     def simple(
         self,
-        camera_pos: pygame.Vector2 | tuple[float, float],
-        source: pygame.Surface,
-        position: pygame.Vector2 | tuple[float, float],
+        camera_pos: _pygame.Vector2 | tuple[float, float],
+        source: _pygame.Surface,
+        position: _pygame.Vector2 | tuple[float, float],
         distance: float = 0,
         max_distance: float = float("inf"),
     ):
@@ -59,9 +58,9 @@ class Camera2D:
             return
 
         dest_pos = (
-            pygame.Vector2(position)
-            - pygame.Vector2(camera_pos)
-            + pygame.Vector2(self._half_width, self._half_height)
+            _pygame.Vector2(position)
+            - _pygame.Vector2(camera_pos)
+            + _pygame.Vector2(self._half_width, self._half_height)
         )
 
         dest_rect = source.get_rect(topleft=(int(dest_pos.x), int(dest_pos.y)))
@@ -72,17 +71,17 @@ class Camera2D:
 
     def parallax(
         self,
-        camera_pos: pygame.Vector3 | tuple[float, float, float],
-        source: pygame.Surface,
-        position: pygame.Vector3 | tuple[float, float, float],
+        camera_pos: _pygame.Vector3 | tuple[float, float, float],
+        source: _pygame.Surface,
+        position: _pygame.Vector3 | tuple[float, float, float],
         zmult: float = 1,
         proximity_limit: float = 0.01,
         max_distance: float = float("inf"),
     ):
         """Queues a surface with perspective scaling based on its z-distance.
-        
+
         `zmult` acts similarly to a FOV."""
-        rel_pos = pygame.Vector3(position) - pygame.Vector3(camera_pos)
+        rel_pos = _pygame.Vector3(position) - _pygame.Vector3(camera_pos)
 
         if rel_pos.z <= proximity_limit or rel_pos.z > max_distance:
             return
@@ -103,13 +102,13 @@ class Camera2D:
         if scaled_source is None:
             try:
                 scale = (
-                    pygame.transform.smoothscale_by
+                    _pygame.transform.smoothscale_by
                     if self.smooth
-                    else pygame.transform.scale_by
+                    else _pygame.transform.scale_by
                 )
                 scaled_source = scale(source, q_scale)
                 self._scale_cache[cache_key] = scaled_source
-            except pygame.error:
+            except _pygame.error:
                 return
 
         dest_rect = scaled_source.get_rect()
@@ -122,15 +121,15 @@ class Camera2D:
 
     def halfparallax(
         self,
-        camera_pos: pygame.Vector3 | tuple[float, float, float],
-        source: pygame.Surface,
-        position: pygame.Vector3 | tuple[float, float, float],
+        camera_pos: _pygame.Vector3 | tuple[float, float, float],
+        source: _pygame.Surface,
+        position: _pygame.Vector3 | tuple[float, float, float],
         zmult: float = 1,
         proximity_limit: float = 0.01,
         max_distance: float = float("inf"),
     ):
         """Queues a surface with parallax projection without scaling."""
-        rel_pos = pygame.Vector3(position) - pygame.Vector3(camera_pos)
+        rel_pos = _pygame.Vector3(position) - _pygame.Vector3(camera_pos)
 
         if rel_pos.z <= proximity_limit or rel_pos.z > max_distance:
             return

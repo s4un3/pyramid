@@ -12,7 +12,11 @@ dependencies = [
     "cython>=3.2.5",
     "pygame>=2.6.1",
     "setuptools>=82.0.1",
+    "pyramid",
 ]
 
 [tool.setuptools.packages.find]
 where = ["src"]
+
+[tool.uv.sources]
+pyramid = {path=".", editable = true}

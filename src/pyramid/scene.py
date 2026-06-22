@@ -1,6 +1,6 @@
-from abc import ABC
-import pygame
-from collections.abc import Callable
+from abc import ABC as _ABC
+import pygame as _pygame
+from collections.abc import Callable as _Callable
 
 __all__ = [
     "Scene",
@@ -23,22 +23,26 @@ class SceneManager:
         max_frame_time_ms: int,
         phys_dt_ms: int,
         graphic_framerate: float,
-        canvas: pygame.Surface | None = None,
+        canvas: _pygame.Surface | None = None,
     ):
         """Initializes scene timing and canvas state for the manager."""
         self._scene_stack: list[Scene] = []
         self._accumulator: int = 0
-        self._clock = pygame.time.Clock()
-        self._screen = pygame.display.get_surface()
+        self._clock = _pygame.time.Clock()
+        self._screen = _pygame.display.get_surface()
+        if self._screen is None:
+            raise RuntimeError(
+                "Display was not initialized. Call 'pygame.display.set_mode' before creating a SceneManager."
+            )
         self._events = []
         self.dt: int = 0
 
-        self.canvas = pygame.Surface(Scene.STD_SIZE) if canvas is None else canvas
+        self.canvas = _pygame.Surface(Scene.STD_SIZE) if canvas is None else canvas
         self.max_frame_time_ms = max_frame_time_ms
         self.phys_dt_ms: int = phys_dt_ms
         self.graphic_framerate: float = graphic_framerate
 
-        self.post_processing: list[Callable[[], None]] = []
+        self.post_processing: list[_Callable[[], None]] = []
 
     @property
     def top(self) -> None | Scene:
@@ -62,13 +66,14 @@ class SceneManager:
 
     def pop(self):
         """Removes the current top scene and restores the next scene below it."""
+        if self.top is None:
+            return
+
+        self.top.exit()
+        self._scene_stack.pop(0)
+
         if self.top:
-
-            self.top.exit()
-            self._scene_stack.pop(0)
-
-            if self.top:
-                self.top.regain_top()
+            self.top.regain_top()
 
     def pop_index(self, i: int):
         """Removes a scene by index from the stack, handling top removal if needed."""
@@ -99,7 +104,7 @@ class SceneManager:
             self.pop()
 
     @staticmethod
-    def _blit_center_fit(source_surf: pygame.Surface, target_surf: pygame.Surface):
+    def _blit_center_fit(source_surf: _pygame.Surface, target_surf: _pygame.Surface):
         """Blits the source surface centered and scaled to fit inside the target surface."""
         src_w, src_h = source_surf.get_size()
         tgt_w, tgt_h = target_surf.get_size()
@@ -108,7 +113,7 @@ class SceneManager:
         new_w = int(src_w * scale_factor)
         new_h = int(src_h * scale_factor)
 
-        scaled_surf = pygame.transform.smoothscale(source_surf, (new_w, new_h))
+        scaled_surf = _pygame.transform.smoothscale(source_surf, (new_w, new_h))
 
         tgt_rect = target_surf.get_rect()
         scaled_rect = scaled_surf.get_rect(center=tgt_rect.center)
@@ -119,16 +124,16 @@ class SceneManager:
         """Performs one frame's event handling, physics updates, and scene drawing."""
         self._accumulator += min(self.max_frame_time_ms, dt)
 
-        events = pygame.event.get()
+        events = _pygame.event.get()
 
         is_resizing = False
 
         for event in events:
-            if event.type == pygame.QUIT:
+            if event.type == _pygame.QUIT:
                 self.end("Window closed by the 'quit' button.")
-            elif event.type in (pygame.VIDEORESIZE, pygame.WINDOWRESIZED):
+            elif event.type in (_pygame.VIDEORESIZE, _pygame.WINDOWRESIZED):
                 is_resizing = True
-                self._screen = pygame.display.get_surface()
+                self._screen = _pygame.display.get_surface()
 
         self.canvas.fill(0)
 
@@ -157,11 +162,13 @@ class SceneManager:
         """Starts the main loop and manages scene execution until halted."""
         try:
             while True:
+                if not self._scene_stack:
+                    self.end("Empty scene stack.")
                 self.dt = self._clock.tick(self.graphic_framerate)
                 self._step(self.dt, self.phys_dt_ms)
                 self._screen.fill(0)
                 self._blit_center_fit(self.canvas, self._screen)
-                pygame.display.flip()
+                _pygame.display.flip()
         except (KeyboardInterrupt, SceneHaltSignal) as e:
             self.clear()
             if isinstance(e, KeyboardInterrupt):
@@ -220,10 +227,10 @@ class SceneManager:
         return (screen_x, screen_y)
 
 
-class Scene(ABC):
+class Scene(_ABC):
     """Abstract base class for game scenes, providing lifecycle hooks and drawing behavior."""
 
-    # even if it is an ABC, all current methods can be safelly left unimplemented (use default)
+    # even if it is an _ABC, all current methods can be safelly left unimplemented (use default)
 
     # class values to act as defaults
     bypass_canvas = False
@@ -234,7 +241,7 @@ class Scene(ABC):
 
     def __init__(
         self,
-        canvas: pygame.Surface | None = None,
+        canvas: _pygame.Surface | None = None,
         blit_pos: tuple[int, int] = (0, 0),
         bypass_canvas: bool = False,
     ):
@@ -246,7 +253,7 @@ class Scene(ABC):
         Useful if the scene doesn't draw anything, or modifies the manager's canvas or screen directly
         """
 
-        self.canvas: pygame.Surface
+        self.canvas: _pygame.Surface
         if not (canvas is None):
             self.canvas = canvas
         else:
@@ -286,12 +293,12 @@ class Scene(ABC):
         pass
 
     def handle_events(
-        self, events: list[pygame.event.Event], on_top: bool, consumed: bool
+        self, events: list[_pygame.event.Event], on_top: bool, consumed: bool
     ) -> bool:
         """Handle events, like key and mouse presses (not continuous)
 
         Will mark events as consumed for scenes below it if True is returned"""
         return False
 
-    def create_canvas(self) -> pygame.Surface:
-        return pygame.Surface(Scene.STD_SIZE)
+    def create_canvas(self) -> _pygame.Surface:
+        return _pygame.Surface(Scene.STD_SIZE)

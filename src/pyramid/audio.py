@@ -1,15 +1,14 @@
-import pygame
-from typing import Self
-from enum import StrEnum
+import pygame as _pygame
+from typing import Self as _Self
+from enum import StrEnum as _StrEnum
 
 __all__ = [
-    'AudioManager',
-    'Track',
+    "AudioManager",
+    "Track",
 ]
 
 
-
-class Track(StrEnum):
+class Track(_StrEnum):
     MUSIC = "mx"
     VOICE = "vo"
     EFFECTS = "sfx"
@@ -21,15 +20,15 @@ class Track(StrEnum):
 class AudioManager:
     """Singleton manager handling audio channels, tracks, and per-channel volume control."""
 
-    _instance: Self | None = None
+    _instance: _Self | None = None
 
-    def __new__(cls) -> Self:
+    def __new__(cls) -> _Self:
         """Returns the shared AudioManager instance, creating it on first access."""
         if cls._instance is None:
             cls._instance = super().__new__(cls)
         return cls._instance
 
-    _channels: dict[Track, list[pygame.mixer.Channel]] = {}
+    _channels: dict[Track, list[_pygame.mixer.Channel]] = {}
     _track_volumes: dict[Track, float] = {}
     _local_volumes: dict[Track, list[float]] = {}
 
@@ -37,14 +36,14 @@ class AudioManager:
         """Initializes a fixed number of mixer channels for each audio track."""
         i = 0
         tracks = [t for t in Track]
-        pygame.mixer.set_num_channels(num_per_track * len(tracks))
+        _pygame.mixer.set_num_channels(num_per_track * len(tracks))
         for track in tracks:
             self._channels[track] = []
             self._track_volumes[track] = 1.0
             self._local_volumes[track] = [1.0] * num_per_track
 
             for _ in range(num_per_track):
-                channel = pygame.mixer.Channel(i)
+                channel = _pygame.mixer.Channel(i)
                 self._channels[track].append(channel)
                 i += 1
 
@@ -67,7 +66,7 @@ class AudioManager:
     def play(
         self,
         track: Track,
-        sound: pygame.mixer.Sound,
+        sound: _pygame.mixer.Sound,
         loops: int = 0,
         maxtime_ms: int = 0,
         fadein_ms: int = 0,

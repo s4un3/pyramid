@@ -44,6 +44,7 @@ dependencies = [
 requires-dist = [
     { name = "cython", specifier = ">=3.2.5" },
     { name = "pygame", specifier = ">=2.6.1" },
+    { name = "pyramid", editable = "." },
     { name = "setuptools", specifier = ">=82.0.1" },
 ]
 

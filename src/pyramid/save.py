@@ -1,8 +1,8 @@
-import datetime
-import json
-import logging
-from pathlib import Path
-from typing import Any
+import datetime as _datetime
+import json as _json
+import logging as _logging
+from pathlib import Path as _Path
+from typing import Any as _Any
 
 __all__ = [
     "JSONStore",
@@ -12,21 +12,21 @@ __all__ = [
 class JSONStore:
     """Persistent JSON storage with default fallback, backup handling, and atomic saves."""
 
-    logger = logging.getLogger(__name__)
+    logger = _logging.getLogger(__name__)
 
-    _copy = lambda _, o: json.loads(json.dumps(o))
+    _copy = lambda _, o: _json.loads(_json.dumps(o))
 
     def __init__(
         self,
-        path: str | Path,
-        default_data: dict[str, Any] | None = None,
+        path: str | _Path,
+        default_data: dict[str, _Any] | None = None,
     ):
         """Creates or loads a JSON store at the provided path, preserving defaults."""
-        self._path = Path(path)
+        self._path = _Path(path)
         self._default_data = (
             self._copy(default_data) if default_data is not None else {}
         )
-        self.data: dict[str, Any] = {}
+        self.data: dict[str, _Any] = {}
 
         self._path.parent.mkdir(parents=True, exist_ok=True)
         self.load()
@@ -40,25 +40,25 @@ class JSONStore:
 
         try:
             with open(self._path, "r", encoding="utf-8") as f:
-                loaded_data = json.load(f)
+                loaded_data = _json.load(f)
 
             if not isinstance(loaded_data, dict):
                 raise TypeError("JSON root must be an object/dictionary.")
 
             self.data = loaded_data
 
-        except (json.JSONDecodeError, OSError, TypeError) as e:
+        except (_json.JSONDecodeError, OSError, TypeError) as e:
             old_path = str(self._path)
-            timestamp = datetime.datetime.now().strftime("%Y%m%d_%H%M%S")
+            timestamp = _datetime.datetime.now().strftime("%Y%m%d_%H%M%S")
             backup_path = self._path.with_suffix(f".bak.{timestamp}")
 
             try:
                 self._path.replace(backup_path)
-                logger.warning(
+                self.logger.warning(
                     f"File '{old_path}' could not be loaded. Old data moved to '{backup_path}' and default loaded."
                 )
             except OSError:
-                logger.error(f"Could not backup corrupted file at {self._path}")
+                self.logger.error(f"Could not backup corrupted file at {self._path}")
 
             self._reset_to_default()
 
@@ -67,7 +67,7 @@ class JSONStore:
         temp_path = self._path.with_suffix(".tmp")
         try:
             with open(temp_path, "w", encoding="utf-8") as f:
-                json.dump(self.data, f, indent=4)
+                _json.dump(self.data, f, indent=4)
 
             temp_path.replace(self._path)
         except (OSError, TypeError, ValueError) as e:
@@ -77,9 +77,9 @@ class JSONStore:
 
     def _reset_to_default(self) -> None:
         """Resets the current store data to a deep copy of the default values."""
-        self.data = json.loads(json.dumps(self._default_data))
+        self.data = _json.loads(_json.dumps(self._default_data))
 
-    def __getitem__(self, key: str) -> Any:
+    def __getitem__(self, key: str) -> _Any:
         """Retrieves a nested value using dot-separated keys, falling back to defaults."""
         parts = key.split(".")
 
@@ -99,7 +99,7 @@ class JSONStore:
         except (KeyError, TypeError):
             raise KeyError(f"Key '{key}' not found in data or defaults.")
 
-    def __setitem__(self, key: str, value: Any) -> None:
+    def __setitem__(self, key: str, value: _Any) -> None:
         """Sets a nested value using dot-separated keys, creating intermediate dictionaries as needed."""
         parts = key.split(".")
         current = self.data
