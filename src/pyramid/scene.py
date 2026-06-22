@@ -1,8 +1,10 @@
 from abc import ABC as _ABC
+from typing import Type as _Type
 import pygame as _pygame
 from collections.abc import Callable as _Callable
 
 __all__ = [
+    "Context",
     "Scene",
     "SceneHaltSignal",
     "SceneManager",
@@ -11,6 +13,12 @@ __all__ = [
 
 class SceneHaltSignal(Exception):
     """Raised by a Scene to signal a halt of the game/simulation"""
+
+    pass
+
+
+class Context(_ABC):
+    """Abstract class for data transfer between scenes."""
 
     pass
 
@@ -43,6 +51,8 @@ class SceneManager:
         self.graphic_framerate: float = graphic_framerate
 
         self.post_processing: list[_Callable[[], None]] = []
+
+        self.ctx: dict[_Type[Context], Context] = {}
 
     @property
     def top(self) -> None | Scene:
