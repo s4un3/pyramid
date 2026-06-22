@@ -254,7 +254,7 @@ class Scene(_ABC):
         """
 
         self.canvas: _pygame.Surface
-        if not (canvas is None):
+        if canvas is not None:
             self.canvas = canvas
         else:
             self.canvas = self.create_canvas()

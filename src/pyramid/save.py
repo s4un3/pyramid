@@ -14,7 +14,8 @@ class JSONStore:
 
     logger = _logging.getLogger(__name__)
 
-    _copy = lambda _, o: _json.loads(_json.dumps(o))
+    def _copy(self, o: dict):
+        return _json.loads(_json.dumps(o))
 
     def __init__(
         self,
@@ -47,7 +48,7 @@ class JSONStore:
 
             self.data = loaded_data
 
-        except (_json.JSONDecodeError, OSError, TypeError) as e:
+        except (_json.JSONDecodeError, OSError, TypeError):
             old_path = str(self._path)
             timestamp = _datetime.datetime.now().strftime("%Y%m%d_%H%M%S")
             backup_path = self._path.with_suffix(f".bak.{timestamp}")
