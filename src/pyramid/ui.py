@@ -65,6 +65,7 @@ class UIStyle:
     hover_color: ColorRGBA = (70, 70, 70, 100)
     border_color: ColorRGBA | None = (255, 255, 255, 255)
     border_width: int = 1
+    border_radius: int = 0
     padding: int | tuple[int, int, int, int] = 4  # top, right, bottom, left
     align_h: UIAlignmentH = UIAlignmentH.CENTER
     align_v: UIAlignmentV = UIAlignmentV.CENTER
@@ -106,7 +107,9 @@ class UIElement(_ABC):
         surf = _pygame.Surface((w, h), _pygame.SRCALPHA)
         bg = bg_override if bg_override is not None else self.style.bg_color
         if bg:
-            surf.fill(bg)
+            _pygame.draw.rect(
+                surf, bg, (0, 0, w, h), border_radius=self.style.border_radius
+            )
 
         if self.style.border_color and self.style.border_width > 0:
             _pygame.draw.rect(
@@ -114,6 +117,7 @@ class UIElement(_ABC):
                 self.style.border_color,
                 (0, 0, w, h),
                 self.style.border_width,
+                border_radius=self.style.border_radius,
             )
         return surf
 
@@ -392,6 +396,48 @@ class UIImage(UIElement):
         return surf, self.absolute_rect
 
 
+class UIInputTextBox(UITextElement):
+    """A simple text input box."""
+
+    def __init__(
+        self,
+        initial_text: str = "",
+        style: UIStyle | None = None,
+        width: int | UISize = UISize.AUTO,
+        height: int | UISize = UISize.AUTO,
+        on_submit: _Callable[[str], None] | None = None,
+    ):
+        super().__init__(lambda: self._input_string, style, width, height)
+
+        self._input_string = initial_text
+        self.on_submit = on_submit
+        self.is_focused = False
+
+    def render(self, topleft: tuple[int, int]) -> tuple[_pygame.Surface, _pygame.Rect]:
+        self.absolute_rect.topleft = topleft
+
+        input_surf = self.draw_text_layout()
+
+        return input_surf, self.absolute_rect
+
+    def handle_event(
+        self, event: _pygame.event.Event, mouse_pos: tuple[int, int]
+    ) -> None:
+        self.is_focused = self.absolute_rect.collidepoint(mouse_pos)
+
+        if self.is_focused and event.type == _pygame.KEYDOWN:
+            if event.key == _pygame.K_BACKSPACE:
+                self._input_string = self._input_string[:-1]
+                self.update_dimensions()
+            elif event.key in (_pygame.K_RETURN, _pygame.K_KP_ENTER):
+                if self.on_submit:
+                    self.on_submit(self._input_string)
+            else:
+                if event.unicode and event.unicode.isprintable():
+                    self._input_string += event.unicode
+                    self.update_dimensions()
+
+
 class UIPanel:
     """Container for arranging UI elements in a row or column with padding and spacing."""
 
@@ -508,8 +554,16 @@ class UIScrollPanel(UIPanel):
 
     def _resolve_max_scroll(self, content_w: int, content_h: int) -> int:
         if self.max_scroll_distance == UISize.AUTO:
-            viewport_size = self.height if self.scroll_direction == PanelOrientation.VERTICAL else self.width
-            content_size = content_h if self.scroll_direction == PanelOrientation.VERTICAL else content_w
+            viewport_size = (
+                self.height
+                if self.scroll_direction == PanelOrientation.VERTICAL
+                else self.width
+            )
+            content_size = (
+                content_h
+                if self.scroll_direction == PanelOrientation.VERTICAL
+                else content_w
+            )
             return max(0, content_size - viewport_size)
         return max(0, int(self.max_scroll_distance))
 
@@ -530,18 +584,34 @@ class UIScrollPanel(UIPanel):
                 max_h = max(max_h, child.height)
                 current_x += child.width + self.spacing
 
-        content_w = max_w if self.orientation == PanelOrientation.VERTICAL else max(0, current_x - self.spacing - self.padding)
-        content_h = max(0, current_y - self.spacing - self.padding) if self.orientation == PanelOrientation.VERTICAL else max_h
+        content_w = (
+            max_w
+            if self.orientation == PanelOrientation.VERTICAL
+            else max(0, current_x - self.spacing - self.padding)
+        )
+        content_h = (
+            max(0, current_y - self.spacing - self.padding)
+            if self.orientation == PanelOrientation.VERTICAL
+            else max_h
+        )
 
-        self.width = content_w + (self.padding * 2) if self.requested_width == UISize.AUTO else int(self.requested_width)
-        self.height = content_h + (self.padding * 2) if self.requested_height == UISize.AUTO else int(self.requested_height)
+        self.width = (
+            content_w + (self.padding * 2)
+            if self.requested_width == UISize.AUTO
+            else int(self.requested_width)
+        )
+        self.height = (
+            content_h + (self.padding * 2)
+            if self.requested_height == UISize.AUTO
+            else int(self.requested_height)
+        )
         self.rect.size = (self.width, self.height)
         self.max_scroll_distance = self._resolve_max_scroll(content_w, content_h)
         self.scroll_offset = min(self.scroll_offset, self.max_scroll_distance)
 
     def _apply_scroll_event(self, event: _pygame.event.Event) -> None:
         if event.type == _pygame.MOUSEWHEEL:
-            delta = (event.y + event.x)
+            delta = event.y + event.x
         else:
             return
 
@@ -591,8 +661,16 @@ class UIScrollPanel(UIPanel):
 
         for child, pos in zip(self.children, child_positions):
             render_pos = (
-                pos[0] - self.scroll_offset if self.scroll_direction == PanelOrientation.HORIZONTAL else pos[0],
-                pos[1] - self.scroll_offset if self.scroll_direction == PanelOrientation.VERTICAL else pos[1],
+                (
+                    pos[0] - self.scroll_offset
+                    if self.scroll_direction == PanelOrientation.HORIZONTAL
+                    else pos[0]
+                ),
+                (
+                    pos[1] - self.scroll_offset
+                    if self.scroll_direction == PanelOrientation.VERTICAL
+                    else pos[1]
+                ),
             )
             c_surf, _ = child.render(topleft=render_pos)
             panel_surf.blit(c_surf, render_pos)
