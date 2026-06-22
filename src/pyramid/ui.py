@@ -13,6 +13,7 @@ __all__ = [
     "UIElement",
     "UIImage",
     "UIPanel",
+    "UIScrollPanel",
     "UISize",
     "UIStyle",
     "UITextBox",
@@ -416,15 +417,21 @@ class UIPanel:
     def handle_event(
         self, event: _pygame.event.Event, mouse_pos: tuple[int, int]
     ) -> None:
+        local_mouse_pos = (mouse_pos[0] - self.rect.x, mouse_pos[1] - self.rect.y)
         for child in self.children:
-            child.handle_event(event, mouse_pos)
+            child.handle_event(event, local_mouse_pos)
 
-    def render(self, surface: _pygame.Surface) -> None:
+    def render(
+        self, topleft: tuple[int, int] | None = None
+    ) -> tuple[_pygame.Surface, _pygame.Rect]:
+        if topleft is not None:
+            self.rect.topleft = topleft
+
         for child in self.children:
             child.update_dimensions()
 
-        current_x = self.rect.x + self.padding
-        current_y = self.rect.y + self.padding
+        current_x = self.padding
+        current_y = self.padding
 
         max_w = 0
         max_h = 0
@@ -442,23 +449,152 @@ class UIPanel:
         if self.orientation == PanelOrientation.VERTICAL:
             self.rect.width = max_w + (self.padding * 2)
             self.rect.height = (
-                (current_y - self.spacing - self.rect.y) + self.padding
+                current_y - self.spacing + self.padding
                 if self.children
                 else self.padding * 2
             )
         else:
             self.rect.height = max_h + (self.padding * 2)
             self.rect.width = (
-                (current_x - self.spacing - self.rect.x) + self.padding
+                current_x - self.spacing + self.padding
                 if self.children
                 else self.padding * 2
             )
 
+        panel_surf = _pygame.Surface(self.rect.size, _pygame.SRCALPHA)
         if self.bg_color:
-            panel_surf = _pygame.Surface(self.rect.size, _pygame.SRCALPHA)
             panel_surf.fill(self.bg_color)
-            surface.blit(panel_surf, self.rect.topleft)
 
         for child, pos in zip(self.children, child_positions):
-            c_surf, c_rect = child.render(topleft=pos)
-            surface.blit(c_surf, c_rect)
+            c_surf, _ = child.render(topleft=pos)
+            panel_surf.blit(c_surf, pos)
+
+        return panel_surf, self.rect
+
+
+class UIScrollPanel(UIPanel):
+    """Scrollable panel container that supports mouse-wheel scrolling.
+
+    The scroll direction and maximum scroll distance are configurable.
+    If max_scroll_distance is `UISize.AUTO`, the panel calculates its own maximum
+    scroll range from content size and visible viewport size.
+    """
+
+    def __init__(
+        self,
+        x: int,
+        y: int,
+        width: int | UISize = UISize.AUTO,
+        height: int | UISize = UISize.AUTO,
+        spacing: int = 10,
+        orientation: PanelOrientation = PanelOrientation.VERTICAL,
+        scroll_direction: PanelOrientation | None = None,
+        max_scroll_distance: int | UISize = UISize.AUTO,
+        step: int = 20,
+        scroll_inverted: bool = False,
+        bg_color: ColorRGBA | None = None,
+        padding: int = 10,
+    ):
+        super().__init__(x, y, spacing, orientation, bg_color, padding)
+        self.requested_width = width
+        self.requested_height = height
+        self.width = 0 if width == UISize.AUTO else int(width)
+        self.height = 0 if height == UISize.AUTO else int(height)
+        self.scroll_direction = scroll_direction or orientation
+        self.max_scroll_distance = max_scroll_distance
+        self.scroll_inverted = scroll_inverted
+        self.scroll_offset = 0
+        self.step = step
+
+    def _resolve_max_scroll(self, content_w: int, content_h: int) -> int:
+        if self.max_scroll_distance == UISize.AUTO:
+            viewport_size = self.height if self.scroll_direction == PanelOrientation.VERTICAL else self.width
+            content_size = content_h if self.scroll_direction == PanelOrientation.VERTICAL else content_w
+            return max(0, content_size - viewport_size)
+        return max(0, int(self.max_scroll_distance))
+
+    def update_dimensions(self) -> None:
+        for child in self.children:
+            child.update_dimensions()
+
+        current_x = self.padding
+        current_y = self.padding
+        max_w = 0
+        max_h = 0
+
+        for child in self.children:
+            if self.orientation == PanelOrientation.VERTICAL:
+                max_w = max(max_w, child.width)
+                current_y += child.height + self.spacing
+            else:
+                max_h = max(max_h, child.height)
+                current_x += child.width + self.spacing
+
+        content_w = max_w if self.orientation == PanelOrientation.VERTICAL else max(0, current_x - self.spacing - self.padding)
+        content_h = max(0, current_y - self.spacing - self.padding) if self.orientation == PanelOrientation.VERTICAL else max_h
+
+        self.width = content_w + (self.padding * 2) if self.requested_width == UISize.AUTO else int(self.requested_width)
+        self.height = content_h + (self.padding * 2) if self.requested_height == UISize.AUTO else int(self.requested_height)
+        self.rect.size = (self.width, self.height)
+        self.max_scroll_distance = self._resolve_max_scroll(content_w, content_h)
+        self.scroll_offset = min(self.scroll_offset, self.max_scroll_distance)
+
+    def _apply_scroll_event(self, event: _pygame.event.Event) -> None:
+        if event.type == _pygame.MOUSEWHEEL:
+            delta = (event.y + event.x)
+        else:
+            return
+
+        if self.scroll_inverted:
+            delta = -delta
+
+        self.scroll_offset = min(
+            max(self.scroll_offset - delta * self.step, 0),
+            self.max_scroll_distance,
+        )
+
+    def handle_event(
+        self, event: _pygame.event.Event, mouse_pos: tuple[int, int]
+    ) -> None:
+        if not self.rect.collidepoint(mouse_pos):
+            return
+
+        if event.type in (_pygame.MOUSEWHEEL, _pygame.MOUSEBUTTONDOWN):
+            self._apply_scroll_event(event)
+
+        local_mouse_pos = (mouse_pos[0] - self.rect.x, mouse_pos[1] - self.rect.y)
+        for child in self.children:
+            child.handle_event(event, local_mouse_pos)
+
+    def render(
+        self, topleft: tuple[int, int] | None = None
+    ) -> tuple[_pygame.Surface, _pygame.Rect]:
+        if topleft is not None:
+            self.rect.topleft = topleft
+
+        self.update_dimensions()
+
+        current_x = self.padding
+        current_y = self.padding
+        child_positions: list[tuple[int, int]] = []
+
+        for child in self.children:
+            child_positions.append((current_x, current_y))
+            if self.orientation == PanelOrientation.VERTICAL:
+                current_y += child.height + self.spacing
+            else:
+                current_x += child.width + self.spacing
+
+        panel_surf = _pygame.Surface(self.rect.size, _pygame.SRCALPHA)
+        if self.bg_color:
+            panel_surf.fill(self.bg_color)
+
+        for child, pos in zip(self.children, child_positions):
+            render_pos = (
+                pos[0] - self.scroll_offset if self.scroll_direction == PanelOrientation.HORIZONTAL else pos[0],
+                pos[1] - self.scroll_offset if self.scroll_direction == PanelOrientation.VERTICAL else pos[1],
+            )
+            c_surf, _ = child.render(topleft=render_pos)
+            panel_surf.blit(c_surf, render_pos)
+
+        return panel_surf, self.rect
